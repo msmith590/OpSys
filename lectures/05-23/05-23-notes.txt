@@ -1,0 +1,58 @@
+[05/23/2022]
+
+TO DO (before Thursday's class):
+
+(1) Review syllabus and post any questions in Submitty
+    (if you are not seeing this course in Submitty, email me goldsd3@rpi.edu)
+
+(2) Add homework/exam/lecex due dates to your calendar
+
+(3) Set up an Ubuntu instance (installing gcc and clang as necessary)
+
+(4) Compile and run today's simple.c example --- make changes to it...
+
+(5) Write a C program to input a string from the user via scanf(),
+     then call a reverse() function to reverse the string (in place),
+      printing the reversed result back in main()
+       (e.g., "ABCDEFGH" ==> "HGFEDCBA")
+       (e.g., "this is fine.\n" ==> "\n.enif si siht")
+
+    *** use static memory allocation, then maybe try dynamic allocation ***
+
+============================================================================
+
+What is an operating system?
+
+**** a program that allocates and manages resources for other programs ****
+
+     OPERATING SYSTEM == RESOURCE MANAGER
+
+
+
+Operating system services:
+
+-- Resource allocation
+   (memory management, process scheduling, disk access, I/O, etc.)
+
+-- Program execution -- fork()
+   (load programs into memory, run/suspend/terminate programs,
+    handle/display errors)
+
+-- Filesystem manipulation
+   (read/write/traverse filesystem directories,
+    read/write/traverse files, enforce permissions/security)
+
+-- Interprocess Communication (IPC)
+   (processes exchange information via shared memory,
+    message passing, sockets, pipes, files, etc.)
+   (key challenge: synchronization)
+
+-- Error detection and recovery
+   (Detect errors in CPU, memory, I/O, processes, etc.)
+   (Recover from errors gracefully)
+
+-- Account and resource protection/security
+   (Users, groups, account verification, memory protection, etc.)
+
+-- Usage monitoring
+   (processes, users, networks, log files, etc.)

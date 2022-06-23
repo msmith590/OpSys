@@ -1,0 +1,31 @@
+[05/26/2022]
+
+  PROCESS
+
+ +------------------------+
+ | runtime heap           | <== dynamic allocation
+ |      |                 |     -- the "new" keyword C++/Java
+ |      | XXXXXXXXXXXXXXXX|     -- in C, malloc(), calloc(),
+ |      |                 |         realloc(), and free()
+ |      |                 |     -- if we forget to free up our
+ |      v                 |         dynamically allocated memory,
+ |                        |          we have a memory leak  :-(
+ |                        |
+ |                        |
+ |                        |
+ |      ^                 |
+ |      |                 |
+ |      |                 |
+ |      |                 |
+ |      |main()           |
+ |      | char * path     |
+ |      | <return-addr>   |
+ |      |                 |
+ | runtime stack          | <== static allocation
+ |------------------------|      (e.g., int x, char * y)
+ | code/data/etc.         |
+ +---^--------------------+
+     |
+     |
+  this is immutable read-only memory
+

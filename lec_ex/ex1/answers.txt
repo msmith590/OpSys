@@ -1,0 +1,23 @@
+1. In the scanf.c example, with the character array 'name' allocated a total of 32 bytes, it would take a total of 32 bytes of input read in from the command line to cause a buffer overflow.
+   This occurs because scanf will write all 32 bytes worth of characters to the 'name' array, as well as an additional null terminating byte ('\0') at the end, resulting in a total of
+   33 bytes written, thus overflowing the 32-byte buffer. For my machine, inputing 41 bytes of characters on the command line with an additional null terminating byte written by scanf
+   causes a stack smashing error (total of 42 bytes written). 
+
+2. In the dynamic-allocation.c example, the reason why there are 3 dynamic memory allocations despite there only being 2 malloc calls is because the printf function allocates and
+   and deallocates dynamic memory in the background when processing string data. This "hidden" dynamic memory allocation uses 1024 bytes out of the total of 1056 bytes allocated
+   by the program. When initially running dynamic-allocation.c on my machine, I do initially see the same output as on the lecture example, however this may not always be guaranteed,
+   as there are invalid dynamic memory reads/writes, which could cause some undefined behavior. On the fifth line of output, the reason why the result is unexpected is because the
+   initial allocated memory of path2 gets corrupted due to an earlier strcpy to the path variable. Path was initially only allocated a total of 16 bytes, however we write in a 40-byte
+   string (including the null terminating byte '\0') which ends up writing over the original character string of path2. This can all be fixed by allocating 40 bytes for path and 17
+   bytes for path2.
+
+3. On line 1, name is allocated a total of 16 bytes. On line 2, x is allocated a total of 4 bytes. On line 3, numbers is allocated a total of 128 bytes. On line 4, values is allocated
+   a total of 256 bytes. For the expression (name + 3), we add 3 bytes to the original pointer. For the expression (numbers + 5), we add 4*5=20 bytes to the original pointer. For the
+   expression (values + 5), we add 5*8=40 bytes to the original pointer. The exact output is as follows:
+
+   D-0000-EFGH
+   00.000000
+
+   For the most part, we can deterministically find the exact output, besides the 16th byte of name which remains uninitialized after the provided assignments. Because of the use of calloc,
+   we know that the memory that gets allocated as a result is zeroed out and thus safe to access and predict. To free the memory used by calloc and malloc, we call the free() function on
+   each of the 4 pointers to dynamic memory. 
