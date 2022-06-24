@@ -30,10 +30,9 @@ int main(int argc, char** argv) {
     printf("pipefd[1]: %d\n", *(pipefd + 1));
 #endif
 
-    /* TODO: Parent must fork and create a child here to execute hidden file */
-
     int fileno = 1;     /* Counter that tracks which file child needs to parse */
 
+    close(*(pipefd + 0)); /* Close unused read end of pipe in child */
     int fd = open(*(argv + fileno), O_RDONLY);
     if (fd == -1) {
         perror("ERROR");
@@ -51,9 +50,9 @@ int main(int argc, char** argv) {
             exit(1);
         }
         *(buffer + bytes_read) = '\0';
-    #ifdef DEBUG_MODE
+    
         printf("\nRead the chunk \'%s\' (%d byte(s)) from %s\n\n", buffer, bytes_read, *(argv + fileno));
-    #endif
+    
         int word_begin = -1;
         for(int i = 0; i < bytes_read; i++) {
             if (word_begin == -1 && isalnum(*(buffer + i))) { /* Valid first character found */
@@ -66,9 +65,9 @@ int main(int argc, char** argv) {
                     word = strncpy(word, (buffer + word_begin), word_len);
                     *(word + word_len) = '.';
                     *(word + word_len + 1) = '\0'; /* Safety measure, will not be written into pipe */
-                #ifdef DEBUG_MODE
+                
                     printf("Parsed word with \'.\' added: \'%s\'\n", word);
-                #endif
+                
                     if (write(*(pipefd + 1), word, word_len + 1) == -1) {
                         perror("ERROR");
                         exit(1);
@@ -82,9 +81,9 @@ int main(int argc, char** argv) {
                 }
             } else if (i == bytes_read - 1 && isalnum(*(buffer + i)) && bytes_read < BUFFER_SIZE - 1) { 
                 /* Handles corner case of a missing delimiter at end of file */
-            #ifdef DEBUG_MODE
+            
                 printf("Corner case: missing delimiter at end of file\n");
-            #endif
+            
                 word_len = i - word_begin + 1;
                 if (word_len < 2) { /* Invalid word, reset word_begin index */
                     word_begin = -1;
@@ -92,9 +91,9 @@ int main(int argc, char** argv) {
                     word = strncpy(word, (buffer + word_begin), word_len);
                     *(word + word_len) = '.';
                     *(word + word_len + 1) = '\0'; /* Safety measure, will not be written into pipe */
-                #ifdef DEBUG_MODE
+                
                     printf("Parsed word with \'.\' added: \'%s\'\n", word);
-                #endif
+                
                     if (write(*(pipefd + 1), word, word_len + 1) == -1) {
                         perror("ERROR");
                         exit(1);
@@ -112,9 +111,9 @@ int main(int argc, char** argv) {
                     perror("ERROR");
                     exit(1);
                 }
-            #ifdef DEBUG_MODE
+            
                 printf("Offset location moved: %d\n", seek);
-            #endif
+            
             }
         }
     } while (bytes_read == BUFFER_SIZE - 1);
@@ -123,6 +122,7 @@ int main(int argc, char** argv) {
     close(fd); /* Close read-only file in child */
     free(buffer);
     free(word);
+    free(pipefd);
 
     if (words_written > 1) {
         printf("CHILD: Successfully wrote %d words on the pipe\n", words_written);
@@ -136,13 +136,6 @@ int main(int argc, char** argv) {
     }
     
     close(*(pipefd + 1)); /* Close unused write end of pipe in parent */
-
-    
-
-    /* TODO: Parent must call waitpid here */
-
-    /* TODO: Parent must create a child process that calls execl here */
-
 
     return EXIT_SUCCESS;
 }
