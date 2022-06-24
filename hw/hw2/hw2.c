@@ -1,3 +1,12 @@
+/* hw2.c
+ *  Author: Martin Smith
+ *  CSCI 4210
+ *  06/22/22
+ *  Goldschmidt
+ *
+ *  Submitty score: 50/50
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
