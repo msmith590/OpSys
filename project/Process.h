@@ -1,7 +1,7 @@
 #ifndef _PROCESS_
 #define _PROCESS_
 
-#include <vector>
+#include <list>
 #include <cmath>
 #include <stdio.h>
 
@@ -13,9 +13,9 @@ friend class Arrival_Compare; // friendly comparator class for process objects
 // friend class Anticipated_Compare;
 
 private:    
-    vector<int> cpuBursts;
-    vector<int> ioBursts;
-    vector<int> tauEstimates; // Estimated CPU Burst times
+    list<int> cpuBursts;
+    list<int> ioBursts;
+    list<int> tauEstimates; // Estimated CPU Burst times
     char processID;
     int arrivalTime; // Gets set once by constructor and never modified afterwards
 
@@ -35,24 +35,20 @@ public:
 
 // ---------------GETTERS---------------------------------------
 
-    const vector<int>& getCPU_Bursts() const {
-        return cpuBursts;
-    }
-
-    const vector<int>& getIO_Bursts() const {
-        return ioBursts;
-    }
-
-    const vector<int>& getTauEstimates() const {
-        return tauEstimates;
-    }
-
     char getProcessID() {
         return processID;
     }
 
     int getArrival() {
         return arrivalTime;
+    }
+
+    int getCurrentCPUBurstTime() {
+        return *(cpuBursts.begin());
+    }
+
+    int getCurrentIOBurstTime() {
+        return *(ioBursts.begin());
     }
 
 
@@ -70,8 +66,10 @@ public:
         once simulation has generated random CPU Bursts */
     void calculateTau(double alph) {
         double tau;
-        for (int i = 1; i < (int) cpuBursts.size(); i++) {
-            tau = ceil((alph * cpuBursts[i - 1]) + ((1.0 - alph) * tauEstimates[i - 1]));
+        list<int>::iterator itC = cpuBursts.begin();
+        list<int>::iterator itT = tauEstimates.begin();
+        for (int i = 1; i < (int) cpuBursts.size(); i++, itC++, itT++) {
+            tau = ceil((alph * *(itC)) + ((1.0 - alph) * *(itT)));
             tauEstimates.push_back(tau);
         }
     }
@@ -80,20 +78,23 @@ public:
 
     void printBursts() {
         if ((int) cpuBursts.size() == 1) {
-            printf("Process %c: arrival time %dms; tau %dms; %ld CPU burst:\n", processID, arrivalTime, tauEstimates[0], cpuBursts.size());
+            printf("Process %c: arrival time %dms; tau %dms; %ld CPU burst:\n", processID, arrivalTime, *(tauEstimates.begin()), cpuBursts.size());
         } else {
-            printf("Process %c: arrival time %dms; tau %dms; %ld CPU bursts:\n", processID, arrivalTime, tauEstimates[0], cpuBursts.size());
+            printf("Process %c: arrival time %dms; tau %dms; %ld CPU bursts:\n", processID, arrivalTime, *(tauEstimates.begin()), cpuBursts.size());
         }
-        for (int i = 0; i < (int) ioBursts.size(); i++) {
-            printf("--> CPU burst %dms --> I/O burst %dms\n", cpuBursts[i], ioBursts[i]);
+        list<int>::iterator itC = cpuBursts.begin();
+        list<int>::iterator itI = ioBursts.begin();
+        for (int i = 0; i < (int) ioBursts.size(); i++, itC++, itI++) {
+            printf("--> CPU burst %dms --> I/O burst %dms\n", *(itC), *(itI));
         }
-        printf("--> CPU burst %dms\n", cpuBursts[cpuBursts.size() - 1]);
+        printf("--> CPU burst %dms\n", *(itC));
     }
 
     void printTau() {
         printf("Process %c: Tau Estimates\n", processID);
-        for (int i = 0; i < (int) tauEstimates.size(); i++) {
-            printf("Estimate for CPU Burst %d: %d\n", i + 1, tauEstimates[i]);
+        list<int>::iterator itT = tauEstimates.begin();
+        for (int i = 0; i < (int) tauEstimates.size(); i++, itT++) {
+            printf("Estimate for CPU Burst %d: %d\n", i + 1, *(itT));
         }
     }
 

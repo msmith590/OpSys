@@ -5,7 +5,7 @@
 #include <cmath>
 #include <climits>
 #include <algorithm>
-#include <queue>
+#include <vector>
 #include "Process.h"
 
 double next_exp(int tail, double lam) {
