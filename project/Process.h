@@ -3,43 +3,34 @@
 
 #include <vector>
 #include <cmath>
+#include <stdio.h>
 
 using namespace std;
 
 class Process {
 
 friend class Arrival_Compare; // friendly comparator class for process objects
-friend class Anticipated_Compare;
+// friend class Anticipated_Compare;
 
 private:    
     vector<int> cpuBursts;
     vector<int> ioBursts;
-    vector<int> turnaroundTime;
     vector<int> tauEstimates; // Estimated CPU Burst times
     char processID;
-    int waitTime;
     int arrivalTime; // Gets set once by constructor and never modified afterwards
-    int CPU_Bursts_Completed; // Used to help iterate through cpu burst vector
-    int burstElapsed; // Used to keep track of a burst that was preempted - MUST BE RESET AFTER EACH BURST COMPLETION FOR PREEMPTIVE ALGORITHMS
 
 public:
     Process() {
         processID = 'A';
-        waitTime = 0;
         arrivalTime = 0;
         tauEstimates.push_back(0);
-        CPU_Bursts_Completed = 0;
-        burstElapsed = 0;
     }
 
     /* arr is the arrival time and lam is used to calculate the initial tau */
     Process(char p, int arr, double lam) {
         processID = p;
-        waitTime = 0;
         arrivalTime = arr;
         tauEstimates.push_back(ceil(1.0 / lam)); // the return value of ceil is a double which gets downcasted to an integer
-        CPU_Bursts_Completed = 0;
-        burstElapsed = 0;
     }
 
 // ---------------GETTERS---------------------------------------
@@ -52,41 +43,18 @@ public:
         return ioBursts;
     }
 
-    const vector<int>& getTurnaround() const {
-        return turnaroundTime;
-    }
-
     const vector<int>& getTauEstimates() const {
         return tauEstimates;
-    }
-
-    int getCurrentCPUBurstTime() {
-        return cpuBursts[CPU_Bursts_Completed];
-    }
-
-    int getCurrentIOBurstTime() {
-        return ioBursts[CPU_Bursts_Completed];
     }
 
     char getProcessID() {
         return processID;
     }
 
-    int getWait() {
-        return waitTime;
-    }
-
     int getArrival() {
         return arrivalTime;
     }
 
-    int getNumCPUBurstsCompleted() {
-        return CPU_Bursts_Completed;
-    }
-
-    int getBurstElapsed() {
-        return burstElapsed;
-    }
 
 // ---------------MODIFIERS---------------------------------
 
@@ -96,14 +64,6 @@ public:
 
     void addIOBurst(int x) {
         ioBursts.push_back(x);
-    }
-
-    void addTurnaround(int x) {
-        turnaroundTime.push_back(x);
-    }
-
-    void addWait(int x) {
-        waitTime += x;
     }
 
     /* This function gets called to calculate all estimated CPU burst times 
@@ -116,38 +76,25 @@ public:
         }
     }
 
-    void cpuBurstCompleted() {
-        CPU_Bursts_Completed++;
-    }
-
-    void resetBurstElapsed() {
-        burstElapsed = 0;
-    }
-
-    void addBurstElapsed(int x) {
-        burstElapsed += x;
-    }
-
-    void decrementCPUBurst(int time) {
-        cpuBursts[CPU_Bursts_Completed] -= time;
-    }
-
-    void decrementIOBurst(int time) {
-        ioBursts[CPU_Bursts_Completed] -= time;
-    }
-
 // ---------------------OUTPUT---------------------------------------
 
     void printBursts() {
         if ((int) cpuBursts.size() == 1) {
-            printf("Process %c (arrival time %d ms) %ld CPU burst (tau %dms)\n", processID, arrivalTime, cpuBursts.size(), tauEstimates[0]);
+            printf("Process %c: arrival time %dms; tau %dms; %ld CPU burst:\n", processID, arrivalTime, tauEstimates[0], cpuBursts.size());
         } else {
-            printf("Process %c (arrival time %d ms) %ld CPU bursts (tau %dms)\n", processID, arrivalTime, cpuBursts.size(), tauEstimates[0]);
+            printf("Process %c: arrival time %dms; tau %dms; %ld CPU bursts:\n", processID, arrivalTime, tauEstimates[0], cpuBursts.size());
         }
         for (int i = 0; i < (int) ioBursts.size(); i++) {
-            printf("--> CPU burst %d ms --> I/O burst %d ms\n", cpuBursts[i], ioBursts[i]);
+            printf("--> CPU burst %dms --> I/O burst %dms\n", cpuBursts[i], ioBursts[i]);
         }
-        printf("--> CPU burst %d ms\n", cpuBursts[cpuBursts.size() - 1]);
+        printf("--> CPU burst %dms\n", cpuBursts[cpuBursts.size() - 1]);
+    }
+
+    void printTau() {
+        printf("Process %c: Tau Estimates\n", processID);
+        for (int i = 0; i < (int) tauEstimates.size(); i++) {
+            printf("Estimate for CPU Burst %d: %d\n", i + 1, tauEstimates[i]);
+        }
     }
 
 };
@@ -161,19 +108,6 @@ public:
             return a.arrivalTime < b.arrivalTime;
         }
     }
-};
-
-class Anticipated_Compare {
-public:
-    bool operator() (Process const a, Process const b) {
-        /* Same amount of remaining time left, therefore compare by process ID */
-        if ((a.tauEstimates[a.CPU_Bursts_Completed] - a.burstElapsed) == (b.tauEstimates[b.CPU_Bursts_Completed] - b.burstElapsed)) {
-            return a.processID > b.processID;
-        } else {
-            return (a.tauEstimates[a.CPU_Bursts_Completed] - a.burstElapsed) > (b.tauEstimates[b.CPU_Bursts_Completed] - b.burstElapsed);
-        }
-    }
-
 };
 
 

@@ -40,92 +40,17 @@ void generateProcesses(vector<Process>& p, long int s, int numP, int tail, doubl
         p[i].addCPUBurst(ceil(next_exp(tail, lam))); // Adds the last CPU Burst time without a following IO Burst
         p[i].calculateTau(alph);
         p[i].printBursts();
+    #ifdef DEBUG_MODE
+        p[i].printTau();
+    #endif
     }
 
 }
-
-void printQueue(priority_queue<Process, vector<Process>, Anticipated_Compare> pq) {
-    Process p;
-    if (pq.empty()) {
-        printf("empty");
-    } else {
-        p = pq.top();
-        printf("%c", p.getProcessID());
-        pq.pop();
-    }
-}
-
 
 // ---------------------------ALGORITHMS----------------------------------
 
-void SJF(vector<Process>& input, int cs) {
-    int elapsed = 0;
-    int next = 0;
-    int operation = 0;
-    int contextSwitches = 0;
-    Process p;
 
-    vector<Process> io;
-    vector<Process> cpu;
-    priority_queue<Process, vector<Process>, Anticipated_Compare> readyQ;
 
-    /*
-        Operation assignments:
-        0 --> Nothing to do -- possible error
-        1 --> CPU Burst Completion
-        2 --> Process getting ready to move into empty CPU
-        3 --> Process finishing up I/O
-        4 --> New process arrival
-        
-    */
-
-    while (!input.empty()) {
-        next = INT_MAX;
-
-        /* CPU Burst check */
-        if (!cpu.empty()) {
-            if(cpu[0].getCurrentCPUBurstTime() < next) { // checks process in CPU
-                next = cpu[0].getCurrentCPUBurstTime();
-                operation = 1;
-            }
-        } else { // process ready to be moved into cpu
-            if (!readyQ.empty()) {
-                next = cs / 2;
-                operation = 2;
-            }
-        }
-        
-        /* I/O Burst check */
-        if (!io.empty()) {
-            for (int i = 0; i < (int) io.size(); i++) {
-                if (io[i].getCurrentIOBurstTime() < next) {
-                    next = io[i].getCurrentIOBurstTime();
-                    operation = 3;
-                }
-            }
-        }
-
-        /* New process arrival check */
-        if ((input[0].getArrival() - elapsed) < next) {
-            next = input[0].getArrival() - elapsed;
-            operation = 4;
-        }
-
-        if (operation == 1) {
-            elapsed = elapsed + next + cs;
-            contextSwitches++;
-            p = cpu[0];
-            cpu.clear();
-            if(p.getNumCPUBurstsCompleted() < ((int) p.getCPU_Bursts().size())) {
-                io.push_back(p);
-            } else {
-                printf("time %dms: Process %c terminated [Q ", elapsed, p.getProcessID());
-                printQueue(readyQ);
-                printf("]\n");
-            }
-        }
-    }
-}
 
 int main(int argc, char* argv[]) {
     
@@ -231,9 +156,6 @@ int main(int argc, char* argv[]) {
     vector<Process> processes;
     generateProcesses(processes, seed, numProc, upperBound, lambda, alpha);
     sort(processes.begin(), processes.end(), Arrival_Compare::earlyArrival);
-
-    // SJF(processes, time_cs);
-    printf("%d", time_slice);
 
     return EXIT_SUCCESS;
 }
