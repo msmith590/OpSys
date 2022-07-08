@@ -74,6 +74,28 @@ public:
         }
     }
 
+    void cpuElapsed(int e) {
+        list<int>::iterator it = cpuBursts.begin();
+        *it = *it - e;
+        if (*it < 0) {
+            fprintf(stderr, "ERROR: Missed an earlier event!\n");
+            abort();
+        } else if (*it == 0) {
+            cpuBursts.pop_front();
+        }
+    }
+
+    void ioElapsed(int e) {
+        list<int>::iterator it = ioBursts.begin();
+        *it = *it - e;
+        if (*it < 0) {
+            fprintf(stderr, "ERROR: Missed an earlier event!\n");
+            abort();
+        } else if (*it == 0) {
+            ioBursts.pop_front();
+        }
+    }
+
 // ---------------------OUTPUT---------------------------------------
 
     void printBursts() {
