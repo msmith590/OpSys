@@ -21,11 +21,11 @@ double next_exp(int tail, double lam) {
     }
 }
 
-void generateProcesses(vector<Process>& p, long int s, int numP, int tail, double lam, double alph) {
+void generateProcesses(list<Process>& processes, long int s, int numP, int tail, double lam, double alph) {
     srand48(s); // Re-seeds the pseudo-random number generator
-    p.clear(); // Ensures that vector is empty before adding new processes
     vector<char> pid{'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 
     'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'}; // vector containing usable process IDs
+    vector<Process> p;
     int arrival = 0;
     int numBursts = 0;
     
@@ -44,12 +44,104 @@ void generateProcesses(vector<Process>& p, long int s, int numP, int tail, doubl
         p[i].printTau();
     #endif
     }
+    sort(p.begin(), p.end(), Arrival_Compare::earlyArrival);
 
+    processes.clear(); // Ensures that list is empty before adding new processes
+    for (int i = 0; i < (int) p.size(); i++) {
+        processes.push_back(p[i]);
+    }
+}
+
+int nextEvent(list<Process>& incoming, Process* cpu, list<Process>& readyQ, list<Process>& io, int timer) {
+   /* Function for determining when the next "interesting" event is during a simulation
+    * Note: Function does not handle specifics within a system -- must check separately!
+    * LEGEND:
+    *  -1 ==> No next event possible
+    *   0 ==> next event occurs in CPU
+    *   1 ==> next event occurs in readyQ
+    *   2 ==> next event occurs in io
+    *   3 ==> next event occurs in incoming
+    */
+    int rc = -1;
+    int next = INT_MAX;
+    list<Process>::iterator it;
+    if (cpu != NULL) {
+        next = cpu->getCurrentCPUBurstTime();
+        rc = 0;
+    } else { // if CPU is empty, check ready queue for process to add
+        if (!readyQ.empty()) { 
+            // empty cpu and non-empty ready queue implies that the next action is to add a process to the cpu
+            it = readyQ.begin();
+            next = it->getCurrentCPUBurstTime();
+            rc = 1;
+        }
+    }
+    if (!io.empty()) {
+        it = io.begin();
+        for (int i = 0; i < (int) io.size(); i++, it++) {
+            if (next > it->getCurrentIOBurstTime()) {
+                next = it->getCurrentIOBurstTime();
+                rc = 2;
+                break;
+            }
+        }
+    }
+    if (!incoming.empty()) {
+        it = incoming.begin();
+        if (next > (it->getArrival() - timer)) {
+            next = it->getArrival() - timer;
+            rc = 3;
+        }
+    }
+#ifdef DEBUG_MODE
+    if (rc == -1) {
+        printf("No more events can occur...\n");
+    } else if (rc == 0) {
+        printf("Next event occurs in CPU in %dms\n", next);
+    } else if (rc == 1) {
+        printf("Next event occurs in ready queue in %dms\n", next);
+    } else if (rc == 2) {
+        printf("Next event occurs in I/O in %dms\n", next);
+    } else if (rc == 3) {
+        printf("Next event occurs in arriving in %dms\n", next);
+    }
+#endif
+
+    return rc;
+}
+
+void printQ(list<Process>& readyQ) {
+    printf("[Q: ");
+    if (readyQ.empty()) {
+        printf("empty]\n");
+    } else {
+        list<Process>::iterator it = readyQ.begin();
+        for (int i = 0; i < (int) readyQ.size(); i++, it++) {
+            if (i == (int) readyQ.size() - 1) {
+                printf("%c]\n", it->getProcessID());
+            } else {
+                printf("%c ", it->getProcessID());
+            }
+        }
+    }
 }
 
 // ---------------------------ALGORITHMS----------------------------------
 
+void FCFS(list<Process>& incoming, int t_cs) {
+    Process* cpu = NULL; // Represents an empty CPU
+    list<Process> readyQ;
+    list<Process> io;
+    Process p;
+    int time = 0;
 
+    while (!incoming.empty() || cpu != NULL || !readyQ.empty() || !io.empty())
+    {
+
+    }
+    
+
+}
 
 
 int main(int argc, char* argv[]) {
@@ -153,9 +245,10 @@ int main(int argc, char* argv[]) {
     printf("time slice for RR (milliseconds): %d\n", time_slice);
 #endif
 
-    vector<Process> processes;
+    list<Process> processes;
+    printQ(processes);
     generateProcesses(processes, seed, numProc, upperBound, lambda, alpha);
-    sort(processes.begin(), processes.end(), Arrival_Compare::earlyArrival);
+    printQ(processes);
 
     return EXIT_SUCCESS;
 }
