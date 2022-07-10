@@ -3,6 +3,7 @@
 
 #include <list>
 #include <cmath>
+#include <vector>
 #include <stdio.h>
 
 using namespace std;
@@ -16,6 +17,9 @@ private:
     list<int> cpuBursts;
     list<int> ioBursts;
     list<int> tauEstimates; // Estimated CPU Burst times
+    vector<int> wait;
+    vector<int> turnaround;
+    vector<int> preemptions;
     char processID;
     int arrivalTime; // Gets set once by constructor and never modified afterwards
 
@@ -51,15 +55,53 @@ public:
         return *(ioBursts.begin());
     }
 
+    int numCPUBursts() {
+        return cpuBursts.size();
+    }
+
+    int numIOBursts() {
+        return ioBursts.size();
+    }
+
+    int getTurnaround(int x) {
+        return turnaround[x];
+    }
+
+    int getWait(int x) {
+        return wait[x];
+    }
+
+    int getPreemptions(int x) {
+        return preemptions[x];
+    }
 
 // ---------------MODIFIERS---------------------------------
 
-    void addCPUBurst(int x) {
+    void addCPUBurst(int x, int t_cs) {
         cpuBursts.push_back(x);
+        turnaround.push_back(x + t_cs);
+        wait.push_back(0);
+        preemptions.push_back(0);
     }
 
     void addIOBurst(int x) {
         ioBursts.push_back(x);
+    }
+
+    void completedCPU() {
+        if (this->getCurrentCPUBurstTime() == 0) {
+            cpuBursts.pop_front();
+        } else {
+            fprintf(stderr, "ERROR: CPU Burst has only been partially completed -- cannot complete!\n");
+        }
+    }
+
+    void completedIO() {
+        if (this->getCurrentIOBurstTime() == 0) {
+            ioBursts.pop_front();
+        } else {
+            fprintf(stderr, "ERROR: IO Burst has only been partially completed -- cannot complete!\n");
+        }
     }
 
     /* This function gets called to calculate all estimated CPU burst times 
@@ -74,26 +116,37 @@ public:
         }
     }
 
-    void cpuElapsed(int e) {
+    int cpuElapsed(int e) {
+        /* Function that elapses the time for the current cpu burst and returns remaining time */
         list<int>::iterator it = cpuBursts.begin();
         *it = *it - e;
         if (*it < 0) {
             fprintf(stderr, "ERROR: Missed an earlier event!\n");
             abort();
-        } else if (*it == 0) {
-            cpuBursts.pop_front();
         }
+        return *it;
     }
 
-    void ioElapsed(int e) {
+    int ioElapsed(int e) {
+        /* Function that elapses the time for the current io burst and returns remaining time */
         list<int>::iterator it = ioBursts.begin();
         *it = *it - e;
         if (*it < 0) {
             fprintf(stderr, "ERROR: Missed an earlier event!\n");
             abort();
-        } else if (*it == 0) {
-            ioBursts.pop_front();
         }
+        return *it;
+    }
+
+    void addWait(int e) {
+        /* Function that increments the wait time of single cpu burst in the ready queue and adjusts overall turnaround time */
+        wait[wait.size() - cpuBursts.size()] += e;
+        turnaround[turnaround.size() - cpuBursts.size()] += e;
+    }
+
+    void addPreemption(int t_cs) {
+        preemptions[preemptions.size() - cpuBursts.size()] += 1;
+        turnaround[turnaround.size() - cpuBursts.size()] += t_cs;
     }
 
 // ---------------------OUTPUT---------------------------------------
