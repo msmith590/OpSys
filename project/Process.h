@@ -22,19 +22,22 @@ private:
     vector<int> preemptions;
     char processID;
     int arrivalTime; // Gets set once by constructor and never modified afterwards
+    int cs; // context switch time
 
 public:
     Process() {
         processID = 'A';
         arrivalTime = 0;
         tauEstimates.push_back(0);
+        cs = 0;
     }
 
     /* arr is the arrival time and lam is used to calculate the initial tau */
-    Process(char p, int arr, double lam) {
+    Process(char p, int arr, double lam, int cs_time) {
         processID = p;
         arrivalTime = arr;
         tauEstimates.push_back(ceil(1.0 / lam)); // the return value of ceil is a double which gets downcasted to an integer
+        cs = cs_time;
     }
 
 // ---------------GETTERS---------------------------------------
@@ -75,11 +78,15 @@ public:
         return preemptions[x];
     }
 
+    int getCS() {
+        return cs;
+    }
+
 // ---------------MODIFIERS---------------------------------
 
-    void addCPUBurst(int x, int t_cs) {
+    void addCPUBurst(int x) {
         cpuBursts.push_back(x);
-        turnaround.push_back(x + t_cs);
+        turnaround.push_back(x + cs);
         wait.push_back(0);
         preemptions.push_back(0);
     }
@@ -121,7 +128,7 @@ public:
         list<int>::iterator it = cpuBursts.begin();
         *it = *it - e;
         if (*it < 0) {
-            fprintf(stderr, "ERROR: Missed an earlier event!\n");
+            fprintf(stderr, "ERROR: Skipped over CPU burst completion!\n");
             abort();
         }
         return *it;
@@ -132,7 +139,7 @@ public:
         list<int>::iterator it = ioBursts.begin();
         *it = *it - e;
         if (*it < 0) {
-            fprintf(stderr, "ERROR: Missed an earlier event!\n");
+            fprintf(stderr, "ERROR: Skipped over I/O burst completion!\n");
             abort();
         }
         return *it;
@@ -144,9 +151,9 @@ public:
         turnaround[turnaround.size() - cpuBursts.size()] += e;
     }
 
-    void addPreemption(int t_cs) {
+    void addPreemption() {
         preemptions[preemptions.size() - cpuBursts.size()] += 1;
-        turnaround[turnaround.size() - cpuBursts.size()] += t_cs;
+        turnaround[turnaround.size() - cpuBursts.size()] += cs;
     }
 
 // ---------------------OUTPUT---------------------------------------
