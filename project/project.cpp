@@ -184,7 +184,7 @@ void FCFS(list<Process>& incoming, int t_cs) {
     int temp = 0;
     bool multiple = false; // used to perform logic in the case an event/events happens during context switch time
 
-    printf("time %dms: Simulator started for FCFS ", timer);
+    printf("\ntime %dms: Simulator started for FCFS ", timer);
     printQ(readyQ);
     while (!incoming.empty() || !cpu.empty() || !readyQ.empty() || !io.empty())
     {
@@ -192,6 +192,7 @@ void FCFS(list<Process>& incoming, int t_cs) {
         if (multiple) {
             if (nextEvent(incoming, cpu, readyQ, io, timer, true) + timer >= temp) {
                 multiple = false;
+                advanceWait(cpu, readyQ, io, (temp - timer));
                 timer = temp;
                 if (!(p.numCPUBursts() == 0) || !(p.numIOBursts() == 0)) {
                     if (p.numCPUBursts() == p.numIOBursts()) { // Process needs to complete io
@@ -301,6 +302,8 @@ void FCFS(list<Process>& incoming, int t_cs) {
             incoming.pop_front();
         }
     }
+    printf("time %dms: Simulator ended for FCFS ", timer);
+    printQ(readyQ);
 }
 
 
