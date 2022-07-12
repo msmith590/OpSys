@@ -155,6 +155,35 @@ bool addToIO(list<Process>& io, Process p) {
     return false;
 }
 
+bool priorityAdd(list<Process>& readyQ, Process p) {
+   /* Function that maintains a priority ordering in the ready queue based on tau estimates */
+    if (p.numCPUBursts() == 0) {
+        fprintf(stderr, "ERROR: Cannot add a terminated process back to the readyQ!\n");
+        abort();
+    }
+    if (readyQ.empty()) {
+        readyQ.push_back(p);
+        return true;
+    } else {
+        list<Process>::iterator it = readyQ.begin();
+        while (it != readyQ.end()) {
+            if (p.getCurrentTau() < it->getCurrentTau()) {
+                readyQ.insert(it, p);
+                return true;
+            } else if (p.getCurrentTau() == it->getCurrentTau()) {
+                if (p.getProcessID() < it->getProcessID()) {
+                    readyQ.insert(it, p);
+                    return true;
+                }
+            }
+            it++;
+        }
+        readyQ.insert(it, p);
+        return true;
+    }
+    return false;
+}
+
 void printQ(list<Process>& readyQ) {
     printf("[Q: ");
     if (readyQ.empty()) {
@@ -193,6 +222,7 @@ void FCFS(list<Process>& incoming, int t_cs) {
             if (nextEvent(incoming, cpu, readyQ, io, timer, true) + timer >= temp) {
                 multiple = false;
                 advanceWait(cpu, readyQ, io, (temp - timer));
+                // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
                 timer = temp;
                 if (!(p.numCPUBursts() == 0) || !(p.numIOBursts() == 0)) {
                     if (p.numCPUBursts() == p.numIOBursts()) { // Process needs to complete io
@@ -241,6 +271,7 @@ void FCFS(list<Process>& incoming, int t_cs) {
             p = cpu[0]; // Temporarily holds process so that other time manipulations can occur
             cpu.clear();
             advanceWait(cpu, readyQ, io, elapse); // empty cpu
+            // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
             if (nextEvent(incoming, cpu, readyQ, io, timer, true) < (t_cs / 2)) {
                 // Corner case: check if another event happens during context switching in
                 // When this is the case, do not add process p to io (if not terminated) yet
@@ -251,6 +282,7 @@ void FCFS(list<Process>& incoming, int t_cs) {
                 elapse = t_cs / 2;
                 timer += elapse; // time added for switching process out of cpu
                 advanceWait(cpu, readyQ, io, elapse); // empty cpu
+                // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
                 if (p.numIOBursts()) {
                     addToIO(io, p);
                 }
@@ -275,6 +307,7 @@ void FCFS(list<Process>& incoming, int t_cs) {
                 elapse = t_cs / 2; // context switch in
                 advanceWait(cpu, readyQ, io, elapse); // empty cpu
                 timer += elapse;
+                // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
                 cpu.push_back(p);
                 printf("time %dms: Process %c started using the CPU for %dms burst ", timer, cpu[0].getProcessID(), cpu[0].getCurrentCPUBurstTime());
                 printQ(readyQ);
@@ -283,7 +316,7 @@ void FCFS(list<Process>& incoming, int t_cs) {
             elapse = nextEvent(incoming, cpu, readyQ, io, timer, true);
             timer += elapse;
             advanceWait(cpu, readyQ, io, elapse);
-
+            // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
             it = io.begin();
             it->completedIO();
             readyQ.push_back(*it);
@@ -294,7 +327,7 @@ void FCFS(list<Process>& incoming, int t_cs) {
             elapse = nextEvent(incoming, cpu, readyQ, io, timer, true);
             timer += elapse;
             advanceWait(cpu, readyQ, io, elapse);
-
+            // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
             it = incoming.begin();
             readyQ.push_back(*it);
             printf("time %dms: Process %c arrived; added to ready queue ", timer, it->getProcessID());

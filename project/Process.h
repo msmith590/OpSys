@@ -16,7 +16,7 @@ friend class Arrival_Compare; // friendly comparator class for process objects
 private:    
     list<int> cpuBursts;
     list<int> ioBursts;
-    list<int> tauEstimates; // Estimated CPU Burst times
+    vector<int> tauEstimates; // Estimated CPU Burst times
     vector<int> wait;
     vector<int> turnaround;
     vector<int> preemptions;
@@ -56,6 +56,23 @@ public:
 
     int getCurrentIOBurstTime() {
         return *(ioBursts.begin());
+    }
+
+    int getCurrentTau() {
+        if (cpuBursts.size() == 0) {
+            fprintf(stderr, "ERROR: All CPU Bursts completed...cannot provide next tau estimate!\n");
+            abort();
+        }
+        return tauEstimates[tauEstimates.size() - cpuBursts.size()];
+    }
+
+    int getTau(int x) {
+        if (x < 0 || x >= (int) tauEstimates.size()) {
+            fprintf(stderr, "ERROR: Index out of bounds for tau estimates!\n");
+            abort();
+        } else {
+            return tauEstimates[x];
+        }
     }
 
     int numCPUBursts() {
@@ -116,9 +133,8 @@ public:
     void calculateTau(double alph) {
         double tau;
         list<int>::iterator itC = cpuBursts.begin();
-        list<int>::iterator itT = tauEstimates.begin();
-        for (int i = 1; i < (int) cpuBursts.size(); i++, itC++, itT++) {
-            tau = ceil((alph * *(itC)) + ((1.0 - alph) * *(itT)));
+        for (int i = 1; i < (int) cpuBursts.size(); i++, itC++) {
+            tau = ceil((alph * *(itC)) + ((1.0 - alph) * tauEstimates[i - 1]));
             tauEstimates.push_back(tau);
         }
     }
@@ -174,9 +190,8 @@ public:
 
     void printTau() {
         printf("Process %c: Tau Estimates\n", processID);
-        list<int>::iterator itT = tauEstimates.begin();
-        for (int i = 0; i < (int) tauEstimates.size(); i++, itT++) {
-            printf("Estimate for CPU Burst %d: %d\n", i + 1, *(itT));
+        for (int i = 0; i < (int) tauEstimates.size(); i++) {
+            printf("Estimate for CPU Burst %d: %d\n", i + 1, tauEstimates[i]);
         }
     }
 
