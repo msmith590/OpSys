@@ -83,7 +83,7 @@ int nextEvent(list<Process>& incoming, vector<Process>& cpu, list<Process>& read
     }
     if (!io.empty()) {
         it = io.begin();
-        if (next > it->getCurrentIOBurstTime()) {
+        if (next > it->getCurrentIOBurstTime() || (next == it->getCurrentIOBurstTime() && rc == 1)) {
             next = it->getCurrentIOBurstTime();
             rc = 2;
         }
@@ -349,147 +349,159 @@ void FCFS(list<Process>& incoming, int t_cs) {
     printQ(readyQ);
 }
 
-// void SJF(list<Process>& incoming, int t_cs) {
-//     vector<Process> cpu;
-//     list<Process> readyQ;
-//     list<Process> io;
-//     list<Process>::iterator it;
-//     vector<Process> terminated;
-//     Process p;
-//     int timer = 0;
-//     int elapse = 0;
-//     int temp = 0;
-//     bool multiple = false; // used to perform logic in the case an event/events happens during context switch time
+void SJF(list<Process>& incoming, int t_cs) {
+    vector<Process> cpu;
+    list<Process> readyQ;
+    list<Process> io;
+    list<Process>::iterator it;
+    vector<Process> terminated;
+    Process p;
+    int timer = 0;
+    int elapse = 0;
+    int temp = 0;
+    bool switching = false; // used to perform logic in the case an event/events happens during context switch time
 
-//     printf("\ntime %dms: Simulator started for SJF ", timer);
-//     printQ(readyQ);
-//     while (!incoming.empty() || !cpu.empty() || !readyQ.empty() || !io.empty())
-//     {
-//         int next = nextEvent(incoming, cpu, readyQ, io, timer, false);
-//         if (multiple) {
-//             if (nextEvent(incoming, cpu, readyQ, io, timer, true) + timer >= temp) {
-//                 multiple = false;
-//                 advanceWait(cpu, readyQ, io, (temp - timer));
-//                 // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
-//                 timer = temp;
-//                 if (!(p.numCPUBursts() == 0) || !(p.numIOBursts() == 0)) {
-//                     if (p.numCPUBursts() == p.numIOBursts()) { // Process needs to complete io
-//                         addToIO(io, p);
-//                     } else {
-//                         cpu.push_back(p);
-//                         if (cpu.size() > 1) {
-//                             fprintf(stderr, "ERROR: Too many processes in the CPU!\n");
-//                             abort();
-//                         }
-//                     }
-//                 }
-//             }
-//         }
+    printf("\ntime %dms: Simulator started for SJF ", timer);
+    printQ(readyQ);
+    while (!incoming.empty() || !cpu.empty() || !readyQ.empty() || !io.empty())
+    {
+        if (switching) {
+            if (nextEvent(incoming, cpu, readyQ, io, timer, switching, true) + timer >= temp) {
+                switching = false;
+                advanceWait(cpu, readyQ, io, (temp - timer));
+                // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
+                timer = temp;
+                if (!(p.numCPUBursts() == 0) || !(p.numIOBursts() == 0)) {
+                    if (p.numCPUBursts() == p.numIOBursts()) { // Process needs to complete io
+                        addToIO(io, p);
+                    } else {
+                        cpu.push_back(p);
+                        it = readyQ.begin();
+                        if (it->getProcessID() == p.getProcessID()) {
+                            readyQ.pop_front();
+                        }
+                        printf("time %dms: Process %c (tau %dms) started using the CPU for %dms burst ", timer, cpu[0].getProcessID(), cpu[0].getCurrentTau(), cpu[0].getCurrentCPUBurstTime());
+                        printQ(readyQ);
+                        if (cpu.size() > 1) {
+                            fprintf(stderr, "ERROR: Too many processes in the CPU!\n");
+                            abort();
+                        }
+                    }
+                }
+            }
+        }
 
-//         if (next == -1) {
-//             fprintf(stderr, "ERROR: while loop did not terminate correctly...\n");
-//             abort();
-//         } else if (next == 0) { // CPU event ==> process completing a cpu burst
-//             if (cpu.size() != 1) {
-//                 fprintf(stderr, "ERROR: CPU has too many processes...\n");
-//                 abort();
-//             }
-//             if (multiple) {
-//                 fprintf(stderr, "ERROR: Skipping an IO/Arrival event!\n");
-//                 abort();
-//             }
-//             elapse = nextEvent(incoming, cpu, readyQ, io, timer, true);
-//             timer += elapse;
-//             if ((cpu[0].cpuElapsed(elapse) == 0) && cpu[0].numIOBursts()) {
-//                 int prevTau = cpu[0].getCurrentTau();
-//                 cpu[0].completedCPU();
-//                 if (cpu[0].numIOBursts() > 1) {
-//                     printf("time %dms: Process %c (tau %dms) completed a CPU burst; %d bursts to go ", timer, cpu[0].getProcessID(), prevTau, cpu[0].numCPUBursts());
-//                     printQ(readyQ);
-//                 } else {
-//                     printf("time %dms: Process %c (tau %dms) completed a CPU burst; %d burst to go ", timer, cpu[0].getProcessID(), prevTau, cpu[0].numCPUBursts());
-//                     printQ(readyQ);
-//                 }
-//                 printf("time %dms: Recalculated tau for process %c: old tau %dms; new tau %dms ", timer, cpu[0].getProcessID(), prevTau, cpu[0].getCurrentTau());
-//                 printQ(readyQ);
-//                 printf("time %dms: Process %c switching out of CPU; will block on I/O until time %dms ", timer, cpu[0].getProcessID(), timer + (t_cs / 2) + cpu[0].getCurrentIOBurstTime());
-//                 printQ(readyQ);
-//             } else {
-//                 cpu[0].completedCPU();
-//                 printf("time %dms: Process %c terminated ", timer, cpu[0].getProcessID());
-//                 printQ(readyQ);
-//                 terminated.push_back(cpu[0]);
-//             }
-//             p = cpu[0]; // Temporarily holds process so that other time manipulations can occur
-//             cpu.clear();
-//             advanceWait(cpu, readyQ, io, elapse); // empty cpu
-//             // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
-//             if (nextEvent(incoming, cpu, readyQ, io, timer, true) < (t_cs / 2)) {
-//                 // Corner case: check if another event happens during context switching in
-//                 // When this is the case, do not add process p to io (if not terminated) yet
-//                 // Do no increment timer by context switch out...let while loop execute again
-//                 multiple = true;
-//                 temp = timer + (t_cs / 2); // used to hold position of timer after context switch out for later comparisons
-//             } else {
-//                 elapse = t_cs / 2;
-//                 timer += elapse; // time added for switching process out of cpu
-//                 advanceWait(cpu, readyQ, io, elapse); // empty cpu
-//                 // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
-//                 if (p.numIOBursts()) {
-//                     addToIO(io, p);
-//                 }
-//             }
-//         } else if (next == 1) { // Ready queue event ==> switch process into cpu
-//             if (multiple) {
-//                 fprintf(stderr, "ERROR: Skipping an IO/Arrival event!\n");
-//                 abort();
-//             }
-//             if (!cpu.empty()) {
-//                 fprintf(stderr, "ERROR: Process stuck in the CPU!\n");
-//                 abort();
-//             }
-//             it = readyQ.begin();
-//             p = *it;
-//             readyQ.pop_front();
+        int next = nextEvent(incoming, cpu, readyQ, io, timer, switching, false);
+        if (next == -1) {
+            fprintf(stderr, "ERROR: while loop did not terminate correctly...\n");
+            abort();
+        } else if (next == 0) { // CPU event ==> process completing a cpu burst
+            if (cpu.size() != 1) {
+                fprintf(stderr, "ERROR: CPU has too many processes...\n");
+                abort();
+            }
+            if (switching) {
+                fprintf(stderr, "ERROR: Skipping an IO/Arrival event!\n");
+                abort();
+            }
+            elapse = nextEvent(incoming, cpu, readyQ, io, timer, switching, true);
+            timer += elapse;
+            if ((cpu[0].cpuElapsed(elapse) == 0) && cpu[0].numIOBursts()) {
+                int prevTau = cpu[0].getCurrentTau();
+                cpu[0].completedCPU();
+                if (cpu[0].numIOBursts() > 1) {
+                    printf("time %dms: Process %c (tau %dms) completed a CPU burst; %d bursts to go ", timer, cpu[0].getProcessID(), prevTau, cpu[0].numCPUBursts());
+                    printQ(readyQ);
+                } else {
+                    printf("time %dms: Process %c (tau %dms) completed a CPU burst; %d burst to go ", timer, cpu[0].getProcessID(), prevTau, cpu[0].numCPUBursts());
+                    printQ(readyQ);
+                }
+                printf("time %dms: Recalculated tau for process %c: old tau %dms; new tau %dms ", timer, cpu[0].getProcessID(), prevTau, cpu[0].getCurrentTau());
+                printQ(readyQ);
+                printf("time %dms: Process %c switching out of CPU; will block on I/O until time %dms ", timer, cpu[0].getProcessID(), timer + (t_cs / 2) + cpu[0].getCurrentIOBurstTime());
+                printQ(readyQ);
+            } else {
+                cpu[0].completedCPU();
+                printf("time %dms: Process %c terminated ", timer, cpu[0].getProcessID());
+                printQ(readyQ);
+                terminated.push_back(cpu[0]);
+            }
+            p = cpu[0]; // Temporarily holds process so that other time manipulations can occur
+            cpu.clear();
+            advanceWait(cpu, readyQ, io, elapse); // empty cpu
+            // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
+            switching = true;
 
-//             if (nextEvent(incoming, cpu, readyQ, io, timer, true) < (t_cs / 2)) {
-//                 multiple = true;
-//                 temp = timer + (t_cs / 2);
-//             } else {
-//                 elapse = t_cs / 2; // context switch in
-//                 advanceWait(cpu, readyQ, io, elapse); // empty cpu
-//                 timer += elapse;
-//                 // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
-//                 cpu.push_back(p);
-//                 printf("time %dms: Process %c (tau %dms) started using the CPU for %dms burst ", timer, cpu[0].getProcessID(), cpu[0].getCurrentTau(), cpu[0].getCurrentCPUBurstTime());
-//                 printQ(readyQ);
-//             }
-//         } else if (next == 2) { // IO event ==> process completes IO Burst and is added back to ready queue
-//             elapse = nextEvent(incoming, cpu, readyQ, io, timer, true);
-//             timer += elapse;
-//             advanceWait(cpu, readyQ, io, elapse);
-//             // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
-//             it = io.begin();
-//             it->completedIO();
-//             priorityAdd(readyQ, *it);
-//             printf("time %dms: Process %c (tau %dms) completed I/O; added to ready queue ", timer, it->getProcessID(), it->getCurrentTau());
-//             printQ(readyQ);
-//             io.pop_front();
-//         } else if (next == 3) { // Initial arrival event ==> add process to ready queue
-//             elapse = nextEvent(incoming, cpu, readyQ, io, timer, true);
-//             timer += elapse;
-//             advanceWait(cpu, readyQ, io, elapse);
-//             // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
-//             it = incoming.begin();
-//             priorityAdd(readyQ, *it);
-//             printf("time %dms: Process %c (tau %dms) arrived; added to ready queue ", timer, it->getProcessID(), it->getCurrentTau());
-//             printQ(readyQ);
-//             incoming.pop_front();
-//         }
-//     }
-//     printf("time %dms: Simulator ended for SJF ", timer);
-//     printQ(readyQ);
-// }
+            if (nextEvent(incoming, cpu, readyQ, io, timer, switching, true) < (t_cs / 2)) {
+                // Corner case: check if another event happens during context switching in
+                // When this is the case, do not add process p to io (if not terminated) yet
+                // Do no increment timer by context switch out...let while loop execute again
+                temp = timer + (t_cs / 2); // used to hold position of timer after context switch out for later comparisons
+            } else {
+                switching = false;
+                elapse = t_cs / 2;
+                timer += elapse; // time added for switching process out of cpu
+                advanceWait(cpu, readyQ, io, elapse); // empty cpu
+                // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
+                if (p.numIOBursts()) {
+                    addToIO(io, p);
+                }
+            }
+        } else if (next == 1) { // Ready queue event ==> switch process into cpu
+            if (switching) {
+                fprintf(stderr, "ERROR: Skipping an IO/Arrival event!\n");
+                abort();
+            }
+            if (!cpu.empty()) {
+                fprintf(stderr, "ERROR: Process stuck in the CPU!\n");
+                abort();
+            }
+            it = readyQ.begin();
+            p = *it;
+            switching = true;
+
+            if (nextEvent(incoming, cpu, readyQ, io, timer, switching, true) < (t_cs / 2)) {
+                if (nextEvent(incoming, cpu, readyQ, io, timer, switching, true) != 0) {
+                    readyQ.pop_front();
+                }
+                temp = timer + (t_cs / 2);
+            } else {
+                readyQ.pop_front();
+                switching = false;
+                elapse = t_cs / 2; // context switch in
+                advanceWait(cpu, readyQ, io, elapse); // empty cpu
+                timer += elapse;
+                // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
+                cpu.push_back(p);
+                printf("time %dms: Process %c (tau %dms) started using the CPU for %dms burst ", timer, cpu[0].getProcessID(), cpu[0].getCurrentTau(), cpu[0].getCurrentCPUBurstTime());
+                printQ(readyQ);
+            }
+        } else if (next == 2) { // IO event ==> process completes IO Burst and is added back to ready queue
+            elapse = nextEvent(incoming, cpu, readyQ, io, timer, switching, true);
+            timer += elapse;
+            advanceWait(cpu, readyQ, io, elapse);
+            // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
+            it = io.begin();
+            it->completedIO();
+            priorityAdd(readyQ, *it);
+            printf("time %dms: Process %c (tau %dms) completed I/O; added to ready queue ", timer, it->getProcessID(), it->getCurrentTau());
+            printQ(readyQ);
+            io.pop_front();
+        } else if (next == 3) { // Initial arrival event ==> add process to ready queue
+            elapse = nextEvent(incoming, cpu, readyQ, io, timer, switching, true);
+            timer += elapse;
+            advanceWait(cpu, readyQ, io, elapse);
+            // ----------------------TIME ELAPSED FOR ALL OTHER PROCESSES----------------------------------
+            it = incoming.begin();
+            priorityAdd(readyQ, *it);
+            printf("time %dms: Process %c (tau %dms) arrived; added to ready queue ", timer, it->getProcessID(), it->getCurrentTau());
+            printQ(readyQ);
+            incoming.pop_front();
+        }
+    }
+    printf("time %dms: Simulator ended for SJF ", timer);
+    printQ(readyQ);
+}
 
 
 int main(int argc, char* argv[]) {
@@ -598,9 +610,9 @@ int main(int argc, char* argv[]) {
     FCFS(processes, time_cs);
     processes.clear();
 
-    // generateProcesses(processes, seed, numProc, upperBound, lambda, alpha, time_cs, false);
-    // SJF(processes, time_cs);
-    // processes.clear();
+    generateProcesses(processes, seed, numProc, upperBound, lambda, alpha, time_cs, false);
+    SJF(processes, time_cs);
+    processes.clear();
 
 
     return EXIT_SUCCESS;
