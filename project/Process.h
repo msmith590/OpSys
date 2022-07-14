@@ -16,6 +16,7 @@ friend class Arrival_Compare; // friendly comparator class for process objects
 private:    
     list<int> cpuBursts;
     list<int> ioBursts;
+    vector<int> partialComplete; // Tracks elapsed cpu burst times (for preemptive algorithms only)
     vector<int> tauEstimates; // Estimated CPU Burst times
     vector<int> wait;
     vector<int> turnaround;
@@ -58,7 +59,22 @@ public:
         return *(ioBursts.begin());
     }
 
+    int getPartialComplete() {
+        /* Funciton that returns the partial completed cpu burst time */
+        if (cpuBursts.size() == 0) {
+            fprintf(stderr, "ERROR: All CPU Bursts completed...should not be comparing partial completeness anymore!\n");
+            abort();
+        }
+        return partialComplete[partialComplete.size() - cpuBursts.size()];
+    }
+
+    int getOriginalCPUBurst() {
+        /* Function that returns the original length of the cpu burst by adding elapsed time to remaining time */
+        return this->getPartialComplete() + this->getCurrentCPUBurstTime();
+    }
+
     int getCurrentTau() {
+        /* Function that returns the current estimated cpu burst time for a process */
         if (cpuBursts.size() == 0) {
             fprintf(stderr, "ERROR: All CPU Bursts completed...cannot provide next tau estimate!\n");
             abort();
@@ -66,13 +82,23 @@ public:
         return tauEstimates[tauEstimates.size() - cpuBursts.size()];
     }
 
-    int getTau(int x) {
+    int getTauAt(int x) {
+        /* Function that returns the estimated tau for the xth burst */
         if (x < 0 || x >= (int) tauEstimates.size()) {
             fprintf(stderr, "ERROR: Index out of bounds for tau estimates!\n");
             abort();
         } else {
             return tauEstimates[x];
         }
+    }
+
+    int getAdjustedTau() {
+        /* Function that returns an adjusted tau value based on the known elapsed time */
+        if (cpuBursts.size() == 0) {
+            fprintf(stderr, "ERROR: All CPU Bursts completed...cannot provide next adjusted tau estimate!\n");
+            abort();
+        }
+        return this->getCurrentTau() - this->getPartialComplete();
     }
 
     int numCPUBursts() {
@@ -99,6 +125,14 @@ public:
         return cs;
     }
 
+    bool isCompleted() {
+        if (cpuBursts.size() == 0 && ioBursts.size() == 0) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
 // ---------------MODIFIERS---------------------------------
 
     void addCPUBurst(int x) {
@@ -106,6 +140,7 @@ public:
         turnaround.push_back(x + cs);
         wait.push_back(0);
         preemptions.push_back(0);
+        partialComplete.push_back(0);
     }
 
     void addIOBurst(int x) {
@@ -128,6 +163,15 @@ public:
         }
     }
 
+    void partialElapsed(int e) {
+        if (cpuBursts.size() == 0) {
+            fprintf(stderr, "ERROR: Process terminated...cannot increment partial complete anymore!\n");
+            abort();
+        } else {
+            partialComplete[partialComplete.size() - cpuBursts.size()] += e;
+        }
+    }
+
     /* This function gets called to calculate all estimated CPU burst times 
         once simulation has generated random CPU Bursts */
     void calculateTau(double alph) {
@@ -147,6 +191,7 @@ public:
             fprintf(stderr, "ERROR: Skipped over CPU burst completion!\n");
             abort();
         }
+        partialElapsed(e);
         return *it;
     }
 
@@ -168,6 +213,7 @@ public:
     }
 
     void addPreemption() {
+        /* Function that increments the preemption counter for a cpu burst */
         preemptions[preemptions.size() - cpuBursts.size()] += 1;
         turnaround[turnaround.size() - cpuBursts.size()] += cs;
     }
