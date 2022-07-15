@@ -91,11 +91,17 @@ public:
         return this->getCurrentTau() - this->getPartialComplete();
     }
 
+    int getTotalNumCPUBursts() {
+        return tauEstimates.size(); // one of several methods of determining total num of cpu bursts
+    }
+
     int numCPUBursts() {
+        // Note: Every CPU Burst completion shortens list size by 1
         return cpuBursts.size();
     }
 
     int numIOBursts() {
+        // Note: Every IO Burst completion shortens list size by 1
         return ioBursts.size();
     }
 
@@ -257,37 +263,20 @@ public:
         return sum;
     }
 
-    double avrgCPU() {
-        /* Function that returns average CPU burst time */
-        double average = this->totalCPU();
-        if (cpuBursts.size() == 0 && partialComplete.size() > 0) { // end of simulation
-            average = (average / partialComplete.size());
-        } else if (cpuBursts.size() == partialComplete.size() && cpuBursts.size() > 0) { // beginning of simulation
-            average = (average / cpuBursts.size());
-        } else { // middle of simulation -- DO NOT CALL DURING EXECUTION OF PREEMPTIVE ALGORITHMS
-            average = (average / cpuBursts.size());
-        }
-        return average;
-    }
-
-    double avrgWait() {
-        /* Function that returns average wait time */
-        double average = 0;
+    int totalWait() {
+        int sum = 0;
         for (int i = 0; i < (int) wait.size(); i++) {
-            average += wait[i];
+            sum += wait[i];
         }
-        average = (average / wait.size());
-        return average;
+        return sum;
     }
 
-    double avrgTurnaround() {
-        /* Function that returns average turnaround time */
-        double average = 0;
+    int totalTurnaround() {
+        int sum = 0;
         for (int i = 0; i < (int) turnaround.size(); i++) {
-            average += turnaround[i];
+            sum += turnaround[i];
         }
-        average = (average / turnaround.size());
-        return average;
+        return sum;
     }
 
 
