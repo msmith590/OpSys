@@ -6,6 +6,10 @@
 #include <climits>
 #include <algorithm>
 #include <vector>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include "Process.h"
 
 double next_exp(int tail, double lam) {
@@ -101,6 +105,12 @@ int nextEvent(list<Process>& incoming, vector<Process>& cpu, list<Process>& read
             next = it->getArrival() - timer;
             rc = 3;
         }
+    }
+
+    if (rc == -1 && !readyQ.empty() && incoming.empty() && io.empty() && cpu.empty()) {
+        it = readyQ.begin();
+        next = (it->getCS() / 2);
+        rc = 1;
     }
 #ifdef DEBUG_MODE
     if (rc == -1) {
@@ -240,15 +250,62 @@ void printQ(list<Process>& readyQ) {
     }
 }
 
+void averageCeil(double& avg) {
+    /* Helper function for printStats function when calculating averages */
+    avg *= 1000;
+    avg = ceil(avg);
+    avg /= 1000;
+}
+
+void printStats(vector<Process>& terminated, int context_switches, int preemptions, int timer, char* algorithm, int fd) {
+    double averageCPUBurst = 0, averageWait = 0, averageTurnaround = 0, cpuUtilization = 0;
+    for (int i = 0; i < (int) terminated.size(); i++) {
+        averageCPUBurst += terminated[i].avrgCPU();
+        averageWait += terminated[i].avrgWait();
+        averageTurnaround += terminated[i].avrgTurnaround();
+        cpuUtilization += terminated[i].totalCPU();
+    }
+    averageCPUBurst /= terminated.size();
+    averageCeil(averageCPUBurst);
+
+    averageWait /= terminated.size();
+    averageCeil(averageWait);
+
+    averageTurnaround /= terminated.size();
+    averageCeil(averageTurnaround);
+
+    cpuUtilization = (cpuUtilization / timer) * 100; // timer should be greater than cpuUtilization
+
+    int bytes_written = 0;
+    bytes_written += dprintf(fd, "Algorithm %s\n", algorithm);
+    bytes_written += dprintf(fd, "-- average CPU burst time: %.3f ms\n", averageCPUBurst);
+    bytes_written += dprintf(fd, "-- average wait time: %.3f ms\n", averageWait);
+    bytes_written += dprintf(fd, "-- average turnaround time: %.3f ms\n", averageTurnaround);
+    bytes_written += dprintf(fd, "-- total number of context switches: %d\n", context_switches);
+    bytes_written += dprintf(fd, "-- total number of preemptions: %d\n", preemptions);
+    bytes_written += dprintf(fd, "-- CPU utilization: %.3f%%\n", cpuUtilization);
+
+    if (bytes_written == 0) {
+        fprintf(stderr, "ERROR: Did not write any bytes to file descriptor!\n");
+    }
+
+    #ifdef DEBUG_MODE
+    printf("Bytes written to \"simout.txt\"\n", bytes_written);
+    #endif
+}
+
+
 // ---------------------------ALGORITHMS----------------------------------
 
-void FCFS(list<Process>& incoming, int t_cs) {
+void FCFS(list<Process>& incoming, int t_cs, int fd) {
     vector<Process> cpu;
     list<Process> readyQ;
     list<Process> io;
     list<Process>::iterator it;
     vector<Process> terminated;
     Process p;
+    int context_switches = 0;
+    int preemptions = 0;
     int timer = 0;
     int elapse = 0;
     int temp = 0;
@@ -346,6 +403,7 @@ void FCFS(list<Process>& incoming, int t_cs) {
             it = readyQ.begin();
             p = *it;
             switching = true;
+            context_switches++;
 
             if (nextEvent(incoming, cpu, readyQ, io, timer, INT_MAX, switching, true) < (t_cs / 2)) {
                 temp = timer + (t_cs / 2);
@@ -385,15 +443,20 @@ void FCFS(list<Process>& incoming, int t_cs) {
     }
     printf("time %dms: Simulator ended for FCFS ", timer);
     printQ(readyQ);
+
+    char name[] = "FCFS";
+    printStats(terminated, context_switches, preemptions, timer, name, fd);
 }
 
-void SJF(list<Process>& incoming, int t_cs) {
+void SJF(list<Process>& incoming, int t_cs, int fd) {
     vector<Process> cpu;
     list<Process> readyQ;
     list<Process> io;
     list<Process>::iterator it;
     vector<Process> terminated;
     Process p;
+    int context_switches = 0;
+    int preemptions = 0;
     int timer = 0;
     int elapse = 0;
     int temp = 0;
@@ -497,6 +560,7 @@ void SJF(list<Process>& incoming, int t_cs) {
             it = readyQ.begin();
             p = *it;
             switching = true;
+            context_switches++;
 
             if (nextEvent(incoming, cpu, readyQ, io, timer, INT_MAX, switching, true) < (t_cs / 2)) {
                 if (nextEvent(incoming, cpu, readyQ, io, timer, INT_MAX, switching, true) != 0) {
@@ -539,15 +603,20 @@ void SJF(list<Process>& incoming, int t_cs) {
     }
     printf("time %dms: Simulator ended for SJF ", timer);
     printQ(readyQ);
+
+    char name[] = "SJF";
+    printStats(terminated, context_switches, preemptions, timer, name, fd);
 }
 
-void SRT(list<Process>& incoming, int t_cs) {
+void SRT(list<Process>& incoming, int t_cs, int fd) {
     vector<Process> cpu;
     list<Process> readyQ;
     list<Process> io;
     list<Process>::iterator it;
     vector<Process> terminated;
     Process p;
+    int context_switches = 0;
+    int preemptions = 0;
     int timer = 0;
     int elapse = 0;
     int temp = 0;
@@ -600,6 +669,7 @@ void SRT(list<Process>& incoming, int t_cs) {
                             switching = true;
                             p = cpu[0];
                             p.addPreemption();
+                            preemptions++;
                             cpu.clear();
                             if (nextEvent(incoming, cpu, readyQ, io, timer, INT_MAX, switching, true) < (t_cs / 2)) {
                                 /* The following checks to see if there are any io/initial arrival events that may occur within context switch out*/
@@ -688,6 +758,7 @@ void SRT(list<Process>& incoming, int t_cs) {
             it = readyQ.begin();
             p = *it;
             switching = true;
+            context_switches++;
 
             if (nextEvent(incoming, cpu, readyQ, io, timer, INT_MAX, switching, true) < (t_cs / 2)) {
                 if (nextEvent(incoming, cpu, readyQ, io, timer, INT_MAX, switching, true) != 0) {
@@ -762,6 +833,7 @@ void SRT(list<Process>& incoming, int t_cs) {
             switching = true;
             p = cpu[0];
             p.addPreemption();
+            preemptions++;
             cpu.clear();
             if (nextEvent(incoming, cpu, readyQ, io, timer, INT_MAX, switching, true) < (t_cs / 2)) {
                 temp = timer + (t_cs / 2); // used to hold position of timer after context switch out for later comparisons
@@ -779,16 +851,20 @@ void SRT(list<Process>& incoming, int t_cs) {
     }
     printf("time %dms: Simulator ended for SRT ", timer);
     printQ(readyQ);
+
+    char name[] = "SRT";
+    printStats(terminated, context_switches, preemptions, timer, name, fd);
 }
 
-
-void RR(list<Process>& incoming, int t_cs, int time_slice) {
+void RR(list<Process>& incoming, int t_cs, int time_slice, int fd) {
     vector<Process> cpu;
     list<Process> readyQ;
     list<Process> io;
     list<Process>::iterator it;
     vector<Process> terminated;
     Process p;
+    int context_switches = 0;
+    int preemptions = 0;
     int timer = 0;
     int elapse = 0;
     int temp = 0;
@@ -906,6 +982,7 @@ void RR(list<Process>& incoming, int t_cs, int time_slice) {
             it = readyQ.begin();
             p = *it;
             switching = true;
+            context_switches++;
 
             if (nextEvent(incoming, cpu, readyQ, io, timer, remaining, switching, true) < (t_cs / 2)) {
                 if (nextEvent(incoming, cpu, readyQ, io, timer, remaining, switching, true) != 0) {
@@ -968,11 +1045,13 @@ void RR(list<Process>& incoming, int t_cs, int time_slice) {
                 preempting = true;
                 p = cpu[0];
                 p.addPreemption();
+                preemptions++;
                 cpu.clear();
                 printf("time %dms: Time slice expired; process %c preempted with %dms remaining ", timer, p.getProcessID(), p.getCurrentCPUBurstTime());
                 printQ(readyQ);
 
                 if (nextEvent(incoming, cpu, readyQ, io, timer, remaining, switching, true) < (t_cs / 2)) {
+                    // In this case, there is either an io completion or initial arrival event that occurs before preemption can fully occur
                     temp = timer + (t_cs / 2); // used to hold position of timer after context switch out for later comparisons
                     multiple = true;
                 } else {
@@ -990,6 +1069,9 @@ void RR(list<Process>& incoming, int t_cs, int time_slice) {
     }
     printf("time %dms: Simulator ended for RR ", timer);
     printQ(readyQ);
+
+    char name[] = "RR";
+    printStats(terminated, context_switches, preemptions, timer, name, fd);
 }
 
 
@@ -1094,22 +1176,26 @@ int main(int argc, char* argv[]) {
     printf("time slice for RR (milliseconds): %d\n", time_slice);
 #endif
 
+    int fd = open("simout.txt", O_WRONLY | O_CREAT | O_APPEND | O_TRUNC );
     list<Process> processes;
+
     generateProcesses(processes, seed, numProc, upperBound, lambda, alpha, time_cs, true);
-    FCFS(processes, time_cs);
+    FCFS(processes, time_cs, fd);
     processes.clear();
 
     generateProcesses(processes, seed, numProc, upperBound, lambda, alpha, time_cs, false);
-    SJF(processes, time_cs);
+    SJF(processes, time_cs, fd);
     processes.clear();
 
     generateProcesses(processes, seed, numProc, upperBound, lambda, alpha, time_cs, false);
-    SRT(processes, time_cs);
+    SRT(processes, time_cs, fd);
     processes.clear();
 
     generateProcesses(processes, seed, numProc, upperBound, lambda, alpha, time_cs, false);
-    RR(processes, time_cs, time_slice);
+    RR(processes, time_cs, time_slice, fd);
     processes.clear();
+
+    close(fd);
 
     return EXIT_SUCCESS;
 }

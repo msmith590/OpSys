@@ -82,16 +82,6 @@ public:
         return tauEstimates[tauEstimates.size() - cpuBursts.size()];
     }
 
-    int getTauAt(int x) {
-        /* Function that returns the estimated tau for the xth burst */
-        if (x < 0 || x >= (int) tauEstimates.size()) {
-            fprintf(stderr, "ERROR: Index out of bounds for tau estimates!\n");
-            abort();
-        } else {
-            return tauEstimates[x];
-        }
-    }
-
     int getAdjustedTau() {
         /* Function that returns an adjusted tau value based on the known elapsed time */
         if (cpuBursts.size() == 0) {
@@ -240,6 +230,66 @@ public:
             printf("Estimate for CPU Burst %d: %d\n", i + 1, tauEstimates[i]);
         }
     }
+
+// ---------------------STATISTICS----------------------------------
+
+    int totalCPU() {
+        /* Function that sums all CPU Burst times for a process */
+        int sum = 0;
+        if (cpuBursts.size() == 0 && partialComplete.size() > 0) { // end of simulation
+            for (int i = 0; i < (int) partialComplete.size(); i++) {
+                sum += partialComplete[i];
+            }
+        } else if (cpuBursts.size() == partialComplete.size() && cpuBursts.size() > 0) { // beginning of simulation
+            list<int>::iterator it = cpuBursts.begin();
+            while (it != cpuBursts.end()) {
+                sum += *it;
+            }
+        } else { // middle of simulation -- DO NOT CALL DURING EXECUTION OF PREEMPTIVE ALGORITHMS
+            for (int i = 0; i < (int) (partialComplete.size() - cpuBursts.size()); i++) {
+                sum += partialComplete[i];
+            }
+            list<int>::iterator it = cpuBursts.begin();
+            while (it != cpuBursts.end()) {
+                sum += *it;
+            }
+        }
+        return sum;
+    }
+
+    double avrgCPU() {
+        /* Function that returns average CPU burst time */
+        double average = this->totalCPU();
+        if (cpuBursts.size() == 0 && partialComplete.size() > 0) { // end of simulation
+            average = (average / partialComplete.size());
+        } else if (cpuBursts.size() == partialComplete.size() && cpuBursts.size() > 0) { // beginning of simulation
+            average = (average / cpuBursts.size());
+        } else { // middle of simulation -- DO NOT CALL DURING EXECUTION OF PREEMPTIVE ALGORITHMS
+            average = (average / cpuBursts.size());
+        }
+        return average;
+    }
+
+    double avrgWait() {
+        /* Function that returns average wait time */
+        double average = 0;
+        for (int i = 0; i < (int) wait.size(); i++) {
+            average += wait[i];
+        }
+        average = (average / wait.size());
+        return average;
+    }
+
+    double avrgTurnaround() {
+        /* Function that returns average turnaround time */
+        double average = 0;
+        for (int i = 0; i < (int) turnaround.size(); i++) {
+            average += turnaround[i];
+        }
+        average = (average / turnaround.size());
+        return average;
+    }
+
 
 };
 
