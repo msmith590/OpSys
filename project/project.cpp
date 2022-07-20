@@ -1,3 +1,15 @@
+/**
+ * @file project.cpp
+ * @author Martin Smith (smithm27@rpi.edu)
+ * @brief Simulation Project for CSCI4210
+ * @version 0.1
+ * @date 2022-07-15
+ * 
+ * 
+ * Submitty Score: 50/50
+ */
+
+
 #include <iostream>
 #include <cctype>
 #include <cstdlib>
@@ -267,6 +279,15 @@ void printStats(vector<Process>& terminated, int context_switches, int preemptio
         averageTurnaround += (double) terminated[i].totalTurnaround();
         cpuUtilization += (double) terminated[i].totalCPU();
         totalBursts += (double) terminated[i].getTotalNumCPUBursts();
+
+    #ifdef STATS_MODE
+        printf("Process %c:\n", terminated[i].getProcessID());
+        printf("\tTotal Number of CPU Bursts: %d\n", terminated[i].getTotalNumCPUBursts());
+        printf("\tTotal CPU Burst Time: %d\n", terminated[i].totalCPU());
+        printf("\tTotal Wait Time: %d\n", terminated[i].totalWait());
+        printf("\tTotal Turnaround Time: %d\n", terminated[i].totalTurnaround());
+    #endif
+
     }
     averageCPUBurst /= totalBursts;
     averageCeil(averageCPUBurst);
@@ -294,7 +315,7 @@ void printStats(vector<Process>& terminated, int context_switches, int preemptio
     }
 
     #ifdef DEBUG_MODE
-    printf("Bytes written to \"simout.txt\"\n", bytes_written);
+    printf("Wrote %d bytes to \"simout.txt\"\n", bytes_written);
     #endif
 }
 
