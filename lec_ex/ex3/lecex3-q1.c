@@ -23,16 +23,15 @@ int lecex3_q1_child( int pipefd ) {
         return EXIT_FAILURE;
     }
 
-    int shmid = shmget( key, sizeof( int ), 0 );
-
-    char* data = shmat(shmid, NULL, 0); // child attaches to shared memory segment
+    int shmid = shmget(key, sizeof(int) * 2, 0); // retrieves the id of the shared memory segment
+    char* data = shmat(shmid, NULL, 0); // child attaches to shared memory segment using id
     if (data == (void *) -1) {
         perror("ERROR");
     }
     for (int i = 0; i < size; i++) {
         *(data + i) = toupper(*(data + i));
     }
-    int rc = shmdt(data);
+    int rc = shmdt(data); // child detaches from shared memory segment
     if (rc == -1) {
         perror("ERROR");
     }
