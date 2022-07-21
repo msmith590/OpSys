@@ -23,7 +23,9 @@ int lecex3_q1_child( int pipefd ) {
         return EXIT_FAILURE;
     }
 
-    char* data = shmat(key, NULL, 0); // child attaches to shared memory segment
+    int shmid = shmget( key, sizeof( int ), 0 );
+
+    char* data = shmat(shmid, NULL, 0); // child attaches to shared memory segment
     if (data == (void *) -1) {
         perror("ERROR");
     }
