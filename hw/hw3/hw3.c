@@ -51,6 +51,7 @@ typedef struct
     int col[8];
 } nextMoves_t;
 
+void* diverge(void* arg);
 
 /* Function that checks to see if a string can be fully converted into an integer */
 int isInteger(char* string) {
@@ -66,12 +67,9 @@ int isInteger(char* string) {
 }
 
 /* Debugging function that prints out board contents */
-void printBoard(int** board, int m, int n)
-{
-    for (int i = 0; i < m; i++)
-    {
-        for (int j = 0; j < n; j++)
-        {
+void printBoard(int** board, int m, int n) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
             printf("%d  ", board[i][j]);
         }
         printf("\n");
@@ -170,19 +168,148 @@ int pathfinder(int m, int n, int r, int c, int** board, nextMoves_t* possiblePos
     return moves;
 }
 
-int runTour(boardData_t* data) {
+void boardDataCopy(boardData_t* src, boardData_t* dest) {
+    int** newBoard = calloc(src->dimensions[0], sizeof(int*));
+    for (int i = 0; i < src->dimensions[0]; i++) {
+        newBoard[i] = calloc(src->dimensions[1], sizeof(int));
+        for (int j = 0; j < src->dimensions[1]; j++) {
+            newBoard[i][j] = src->board[i][j];
+        }
+    }
+    dest->board = newBoard;
+    dest->dimensions[0] = src->dimensions[0];
+    dest->dimensions[1] = src->dimensions[1];
+    dest->move = src->move;
+    dest->position[0] = src->position[0];
+    dest->position[1] = src->position[1];
+    dest->threadID = src->threadID;
+}
+
+void updateBoard(boardData_t* data, int r, int c) {
+    data->move++;
+    data->position[0] = r;
+    data->position[1] = c;
+    if (data->board[r][c] == 0) {
+        data->board[r][c] = data->move;
+    } else {
+        fprintf(stderr, "ERROR: updateBoard() failed!\n");
+        abort();
+    }
+}
+
+void runTour(boardData_t* data) {
     nextMoves_t* possibleMoves = calloc(1, sizeof(nextMoves_t));
+    int* threadReturn; // Holds the thread ID of the terminated thread
     int boardSize = data->dimensions[0] * data->dimensions[1];
     
     while (data->move < boardSize) {
         int numMoves = pathfinder(data->dimensions[0], data->dimensions[1], data->position[0], data->position[1], data->board, possibleMoves);
         
-        if (numMoves == 0) {
-            
+        if (numMoves > 1) { // Multiple moves detected
+            if (data->threadID == 0) {
+                printf("MAIN: %d possible moves after move #%d; creating %d child threads...\n", numMoves, data->move, numMoves);
+            } else {
+                printf("T%d: %d possible moves after move #%d; creating %d child threads...\n", data->threadID, numMoves, data->move, numMoves);
+            }
+            pthread_t tid[numMoves]; // array the keeps track of thread IDs
+            int tid_counter = 0;
+            for (int i = 0; i < 8; i++) {
+                if (possibleMoves->row[i] != -1 && possibleMoves->col[i] != -1) {
+                    boardData_t* new = calloc(1, sizeof(boardData_t));
+                    boardDataCopy(data, new);
+                    updateBoard(new, possibleMoves->row[i], possibleMoves->col[i]);
+                    if (pthread_create(&tid[tid_counter], NULL, diverge, new) != 0) {
+                        fprintf(stderr, "ERROR: pthread_create() failed!\n");
+                        abort();
+                    }
+                    #ifdef NO_PARALLEL
+                    pthread_join(tid[tid_counter], (void**) &threadReturn);
+                    if (data->threadID == 0) {
+                        printf("MAIN: T%d joined\n", *threadReturn);
+                    } else {
+                        printf("T%d: T%d joined\n", data->threadID, *threadReturn);
+                    }
+                    free(threadReturn);
+                    #endif
+                    tid_counter++;
+                }
+            }
+
+            #ifndef NO_PARALLEL
+            for (int i = 0; i < tid_counter; i++) {
+                pthread_join(tid[i], (void**) &threadReturn);
+                if (data->threadID == 0) {
+                    printf("MAIN: T%d joined\n", *threadReturn);
+                } else {
+                    printf("T%d: T%d joined\n", data->threadID, *threadReturn);
+                }
+                free(threadReturn);
+            }
+            #endif
+
+            break; // at this point, parent thread no longer needs to continue processing
+        } else if (numMoves == 1) {
+            for (int i = 0; i < 8; i++) {
+                if (possibleMoves->row[i] != -1 && possibleMoves->col[i] != -1) {
+                    updateBoard(data, possibleMoves->row[i], possibleMoves->col[i]);
+                    break;
+                }
+            }
+        } else { // numMoves == 0 but move number is less than boardSize, implying a dead end
+            pthread_mutex_lock(&mutex);
+            {
+                if (data->move > max_squares) {
+                    max_squares = data->move;
+                    if (data->threadID == 0) {
+                        printf("MAIN: Dead end at move #%d; updated max_squares\n", data->move);
+                    } else {
+                        printf("T%d: Dead end at move #%d; updated max_squares\n", data->threadID, data->move);
+                    }
+                } else {
+                    if (data->threadID == 0) {
+                        printf("MAIN: Dead end at move #%d\n", data->move);
+                    } else {
+                        printf("T%d: Dead end at move #%d\n", data->threadID, data->move);
+                    }
+                }
+            }
+            pthread_mutex_unlock(&mutex);
+            break;
         }
     }
+
+    if (data->move == (data->dimensions[0] * data->dimensions[1])) { // Full Knight's tour found
+        pthread_mutex_lock(&mutex);
+        {
+            total_tours++;
+            max_squares = data->move;
+            printf("T%d: Sonny found a full knight's tour; incremented total_tours\n", data->threadID);
+        }
+        pthread_mutex_unlock(&mutex);
+    }
+
+    free(possibleMoves);
+}
+
+/* Thread function that all child threads execute to continue simulation */
+void* diverge(void* arg) {
+    boardData_t* version = (boardData_t*) arg;
     
-    return data->move;
+    // Assign a new thread ID to current thread (synchronized)
+    pthread_mutex_lock(&mutex);
+    {
+        version->threadID = next_thread_id;
+        next_thread_id++;
+    }
+    pthread_mutex_unlock(&mutex);
+    
+    runTour(version);
+    int* tid = calloc(1, sizeof(int));
+    *tid = version->threadID;
+
+    freeBoard(version);
+    pthread_exit(tid);
+    return NULL;
 }
 
 int simulate( int argc, char * argv[] ) {
@@ -227,6 +354,9 @@ int simulate( int argc, char * argv[] ) {
         return EXIT_FAILURE;
     }
 
+    printf("MAIN: Solving Sonny's knight's tour problem for a %dx%d board\n", m, n);
+    printf("MAIN: Sonny starts at row %d and column %d (move #1)\n", r, c);
+
     // Initial board creation
     int** board = calloc(m, sizeof(int*));
     for (int i = 0; i < m; i++) {
@@ -240,9 +370,26 @@ int simulate( int argc, char * argv[] ) {
     initial->position[0] = r;
     initial->position[1] = c;
     initial->move = 1;
+    initial->threadID = 0;
 
     runTour(initial);
-    
+    pthread_mutex_lock(&mutex);
+    {
+        if (total_tours == 0) {
+            if (max_squares == 1) {
+                printf("MAIN: Search complete; best solution(s) visited %d square out of %d\n", max_squares, m * n);
+            } else {
+                printf("MAIN: Search complete; best solution(s) visited %d squares out of %d\n", max_squares, m * n);
+            }
+        } else {
+            if (total_tours == 1) {
+                printf("MAIN: Search complete; found %d possible path to achieving a full knight's tour\n", total_tours);
+            } else {
+                printf("MAIN: Search complete; found %d possible paths to achieving a full knight's tour\n", total_tours);
+            }
+        }
+    }
+    pthread_mutex_unlock(&mutex);
     freeBoard(initial);
 
     return EXIT_SUCCESS;
