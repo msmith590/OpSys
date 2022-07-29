@@ -1,3 +1,12 @@
+/* hw3.c
+ *  Author: Martin Smith
+ *  CSCI 4210
+ *  07/28/2022
+ *  Goldschmidt
+ *
+ *  Submitty score: 50/50
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -76,6 +85,7 @@ void printBoard(int** board, int m, int n) {
     }
 }
 
+/* Memory cleanup function for boardData_t types */
 void freeBoard(boardData_t* arg) {
     for (int i = 0; i < arg->dimensions[0]; i++) {
         free(arg->board[i]);
@@ -84,6 +94,12 @@ void freeBoard(boardData_t* arg) {
     free(arg);
 }
 
+/**
+ * The pathfinder(..) function checks a board for valid moves from a provided
+ * starting position. While checking for possibilities, all possible moves
+ * are stored in a predefined nextMoves_t struct called possiblePos, which
+ * is used in the runTour(..) function to move Sonny
+*/
 int pathfinder(int m, int n, int r, int c, int** board, nextMoves_t* possiblePos)
 { // Assumes that we have a valid board and r, c are valid
     int moves = 0;
@@ -168,6 +184,7 @@ int pathfinder(int m, int n, int r, int c, int** board, nextMoves_t* possiblePos
     return moves;
 }
 
+/* Function that copies board data from src over to dest */
 void boardDataCopy(boardData_t* src, boardData_t* dest) {
     int** newBoard = calloc(src->dimensions[0], sizeof(int*));
     for (int i = 0; i < src->dimensions[0]; i++) {
@@ -185,6 +202,7 @@ void boardDataCopy(boardData_t* src, boardData_t* dest) {
     dest->threadID = src->threadID;
 }
 
+/* Function that moves Sonny to position (r, c) and updates move counter */
 void updateBoard(boardData_t* data, int r, int c) {
     data->move++;
     data->position[0] = r;
@@ -197,6 +215,12 @@ void updateBoard(boardData_t* data, int r, int c) {
     }
 }
 
+/**
+ * Function that performs action of finding a knight's tour. All threads will call
+ * this function to simulate moving Sonny across their boards. When multiple moves
+ * are detected, a child thread is created for EACH possible move, and parent thread
+ * can block until child threads have terminated.
+ */
 void runTour(boardData_t* data) {
     nextMoves_t* possibleMoves = calloc(1, sizeof(nextMoves_t));
     int* threadReturn; // Holds the thread ID of the terminated thread
@@ -312,6 +336,7 @@ void* diverge(void* arg) {
     return NULL;
 }
 
+/* Driver function for entire simulation that creates starting board */
 int simulate( int argc, char * argv[] ) {
     setvbuf( stdout, NULL, _IONBF, 0 ); // disables buffered output for more predictable results
 
