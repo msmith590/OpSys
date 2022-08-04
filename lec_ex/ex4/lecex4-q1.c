@@ -108,10 +108,6 @@ int main(int argc, char **argv)
             continue;
         }
 
-        if (buffer[0] == '\n') {
-            break;
-        }
-
         printf("Rcvd datagram from %s port %d\n",
                inet_ntoa(remote_client.sin_addr), ntohs(remote_client.sin_port));
 
@@ -125,10 +121,10 @@ int main(int argc, char **argv)
             }
         }
         /* TO DO: check the return value from sendto() */
-        if (count != 0) {
-            uint32_t relay = htonl(count);
-            sendto(sd, &relay, sizeof(uint32_t), 0, (struct sockaddr *)&remote_client, addrlen);
-        }
+        
+        uint32_t relay = htonl(count);
+        sendto(sd, &relay, 4, 0, (struct sockaddr *)&remote_client, addrlen);
+        
     }
     
     close(sd);
