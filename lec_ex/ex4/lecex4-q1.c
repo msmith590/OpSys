@@ -108,6 +108,10 @@ int main(int argc, char **argv)
             continue;
         }
 
+        if (buffer[0] == '\n') {
+            break;
+        }
+
         printf("Rcvd datagram from %s port %d\n",
                inet_ntoa(remote_client.sin_addr), ntohs(remote_client.sin_port));
 
@@ -115,7 +119,6 @@ int main(int argc, char **argv)
         buffer[n] = '\0'; /* assume that its printable char[] data */
         printf("RCVD: [%s]\n", buffer);
 
-        /* echo the first 4 bytes (at most) plus '\n' back to the sender/client */
         for (int i = 0; i < n; i++) {
             if (buffer[i] == 'G') {
                 count++;
@@ -124,11 +127,10 @@ int main(int argc, char **argv)
         /* TO DO: check the return value from sendto() */
         if (count != 0) {
             uint32_t relay = htonl(count);
-            // printf("HELLO!\n");
             sendto(sd, &relay, sizeof(uint32_t), 0, (struct sockaddr *)&remote_client, addrlen);
         }
     }
     
-     close(sd);
+    close(sd);
     return EXIT_SUCCESS;
 }
