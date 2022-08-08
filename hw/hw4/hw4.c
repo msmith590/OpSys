@@ -11,9 +11,32 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define MAXBUFFER 8192
+#define MAXBUFFER 1024
 #define MAX_CLIENTS 5
 
+void capitalize(char* word) {
+    for (int i = 0; i < strlen(word); i++) {
+        word[i] = toupper(word[i]);
+    }
+}
+
+int isSame(char* w1, char* w2) {
+    char* temp1 = calloc(strlen(w1) + 1, sizeof(char));
+    strncpy(temp1, w1, strlen(w1) + 1);
+    char* temp2 = calloc(strlen(w2) + 1, sizeof(char));
+    strncpy(temp2, w2, strlen(w2) + 1);
+
+    capitalize(temp1);
+    capitalize(temp2);
+    int rc = 0;
+    if (strcmp(temp1, temp2) == 0) { // words are the same
+        rc = 1;
+    }
+
+    free(temp1);
+    free(temp2);
+    return rc;
+}
 
 char** parseDict(int dictfd, int longest_word, int* dictionary_size) {
     int num_words = 0;
@@ -56,6 +79,7 @@ char** parseDict(int dictfd, int longest_word, int* dictionary_size) {
         word_length = 0;
     }
     free(buffer);
+    close(dictfd);
 
     #ifdef DEBUG_MODE
     printf("Printing contents of dictionary:\n");
@@ -67,9 +91,27 @@ char** parseDict(int dictfd, int longest_word, int* dictionary_size) {
     return dict;
 }
 
+/**
+ * @brief Checks if name is a valid username
+ * 
+ * @param name 
+ * @param usernames 
+ * @return 0 if name is invalid; 1 if name is valid
+ */
+int checkUsernames(char* name, char** usernames) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (usernames[i] != NULL && isSame(name, usernames[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 
 int main(int argc, char** argv)
 {
+    setvbuf( stdout, NULL, _IONBF, 0 );
+
     // Argument checking
     if (argc != 5) {
         fprintf(stderr, "ERROR: Incorrect arguments!\n");
@@ -133,10 +175,16 @@ int main(int argc, char** argv)
 
     int dictionary_size = 0;
     char** dictionary = parseDict(dictfd, longest_word_length, &dictionary_size);
+    srand(seed);
+    char* secret_word = calloc(longest_word_length, sizeof(char));
+    memccpy(secret_word, dictionary[rand() % dictionary_size], '\0', longest_word_length);
+    
     
     fd_set readfds;
     int client_sockets[MAX_CLIENTS]; /* client socket fd list */
     int client_socket_index = 0;     /* next free spot */
+    char** usernames = calloc(MAX_CLIENTS, sizeof(char*));
+    int client_username_index = 0;
 
     /* Create the listener socket as TCP socket (SOCK_STREAM) */
     int listener = socket(PF_INET, SOCK_STREAM, 0);
@@ -144,7 +192,7 @@ int main(int argc, char** argv)
 
     if (listener == -1)
     {
-        perror("socket() failed");
+        fprintf(stderr, "ERROR: socket() failed!\n");
         return EXIT_FAILURE;
     }
 
@@ -164,27 +212,40 @@ int main(int argc, char** argv)
     /* attempt to bind (or associate) port with the socket */
     if (bind(listener, (struct sockaddr *)&server, len) == -1)
     {
-        perror("bind() failed");
-        return EXIT_FAILURE;
+        server.sin_port = htons(0);
+        if (bind(listener, (struct sockaddr *)&server, len) == -1) {
+            fprintf(stderr, "ERROR: Unable to bind listener socket to a port!\n");
+            return EXIT_FAILURE;
+        }
     }
 
     /* identify this port as a TCP listener port */
-    if (listen(listener, 5) == -1)
+    if (listen(listener, MAX_CLIENTS) == -1)
     {
-        perror("listen() failed");
+        fprintf(stderr, "ERROR: Unable to mark socket as a listener!\n");
         return EXIT_FAILURE;
     }
 
     printf("SERVER: TCP listener socket (fd %d) bound to port %d\n", listener, port);
 
-    int n;
-    char buffer[MAXBUFFER];
+    int n, bytes_written = 0;
+    char buffer[MAXBUFFER + 1];
+    char* temp = calloc(5, sizeof(char)); // used to send integers as strings to clients
+    
 
     while (1)
     {
         FD_ZERO(&readfds);
-        FD_SET(listener, &readfds); /* listener socket, fd 3 */
-        printf("SERVER: Set FD_SET to include listener fd %d\n", listener);
+        if (client_socket_index - 1 > MAX_CLIENTS) {
+            fprintf(stderr, "ERROR: Too many clients connected!\n");
+            return EXIT_FAILURE;
+        } else if (client_socket_index - 1 == MAX_CLIENTS) {
+            printf("SERVER: Max number of clients reached (%d clients) - ", client_socket_index - 1);
+            printf("will not be listening for additional connection requests\n");
+        } else {
+            FD_SET(listener, &readfds); /* listener socket, fd 3 */
+            printf("SERVER: Set FD_SET to include listener fd %d\n", listener);
+        }
 
         /* initially, this for loop does nothing; but once we have some */
         /*  client connections, we will add each client connection's fd */
@@ -196,11 +257,9 @@ int main(int argc, char** argv)
         }
 
         printf("SERVER: Blocked on select()...\n");
-#if 1
+
         /* This is a BLOCKING call, but will block on all readfds */
         int ready = select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
-#endif
-
 
         /* ready is the number of ready file descriptors */
         printf("SERVER: select() identified %d descriptor(s) with activity\n", ready);
@@ -212,13 +271,16 @@ int main(int argc, char** argv)
             int fromlen = sizeof(client);
 
             /* we know this accept() call will not block! */
-            /* printf( "SERVER: Blocked on accept()\n" ); */
             int newsd = accept(listener, (struct sockaddr *)&client, (socklen_t *)&fromlen);
-
             if (newsd == -1)
             {
                 perror("accept() failed");
                 continue;
+            }
+            n = send(newsd, "Welcome to Guess the Word, please enter your username.\n", 55, 0);
+            if (n == -1) {
+                fprintf(stderr, "ERROR: send() failed\n");
+                return EXIT_FAILURE;
             }
 
             printf("SERVER: Accepted client connection from %s\n", inet_ntoa((struct in_addr)client.sin_addr));
@@ -233,10 +295,6 @@ int main(int argc, char** argv)
             if (FD_ISSET(fd, &readfds))
             {
                 /* we know this recv() call will not block! */
-                /* printf( "SERVER: Blocked on recv()\n" ); */
-                /* recv() call will block until we receive data (n > 0)
-                    or an error occurs (n == -1)
-                     or the client closed its socket (n == 0) */
                 n = recv(fd, buffer, MAXBUFFER - 1, 0); /* or read() */
 
                 if (n == -1)
@@ -254,30 +312,64 @@ int main(int argc, char** argv)
                     {
                         if (fd == client_sockets[k])
                         {
+                            free(usernames[k]);
                             /* found it -- copy remaining elements over fd */
                             for (int m = k; m < client_socket_index - 1; m++)
                             {
                                 client_sockets[m] = client_sockets[m + 1];
+                                usernames[m] = usernames[m + 1];
                             }
+                            client_username_index--;
                             client_socket_index--;
+                            usernames[client_username_index] = NULL;
                             break; /* all done */
                         }
                     }
                 }
                 else /* n > 0 */
                 {
-                    buffer[n] = '\0'; /* assume this is text data */
-                    printf("SERVER: Rcvd message from: [%s]\n", buffer);
-
-                    printf("SERVER: Sending acknowledgement to client\n");
-                    /* send OK message back to client */
-                    n = send(fd, "OK\n", 3, 0);
-
-                    if (n == -1)
-                    {
-                        perror("send() failed");
+                    if (n > longest_word_length + 1) { // +1 accounts for newline byte ('\n')
+                        fprintf(stderr, "ERROR: Too many bytes sent!\n");
                         return EXIT_FAILURE;
                     }
+                    buffer[n - 1] = '\0'; /* assume this is text data, overrites newline with null byte */
+                    printf("SERVER: Rcvd message from fd %d: [%s]\n", fd, buffer);
+                    printf("SERVER: Sending acknowledgement to client\n");
+                    if (usernames[i] == NULL) { // Need to get username from client
+                        if (checkUsernames(buffer, usernames)) {
+                            send(fd, "Let's start playing, ", 21, 0);
+                            send(fd, buffer, n - 1, 0);
+                            send(fd, "\nThere are ", 11, 0);
+                            if ((bytes_written = snprintf(temp, 5, "%d", client_username_index + 1)) < 0) {
+                                fprintf(stderr, "ERROR: snprintf() failed\n");
+                                return EXIT_FAILURE;
+                            }
+                            send(fd, temp, bytes_written, 0);
+                            send(fd, " player(s) playing. The secret word is ", 39, 0);
+                            if ((bytes_written = snprintf(temp, 5, "%ld", strlen(secret_word))) < 0) {
+                                fprintf(stderr, "ERROR: snprintf() failed\n");
+                                return EXIT_FAILURE;
+                            }
+                            send(fd, temp, bytes_written, 0);
+                            send(fd, " letter(s).\n", 12, 0);
+
+                            usernames[i] = calloc(n - 1, sizeof(char));
+                            memcpy(usernames[i], buffer, n - 1);
+                            client_username_index++;
+                        } else {
+                            send(fd, "Username ", 9, 0);
+                            send(fd, buffer, n - 1, 0);
+                            send(fd, " is already taken, please enter a different username\n", 53, 0);
+                        }
+                    } else { // client is providing a guess
+                        if (strlen(secret_word) == strlen(buffer)) {
+                            if (isSame(buffer, secret_word)) { // correct guess was made
+
+                            }
+                        }
+                    }
+
+
                 }
             }
         }
