@@ -107,6 +107,46 @@ int checkUsernames(char* name, char** usernames) {
     return 1;
 }
 
+void compareWords(char* guess, char* target, int* correct_letters, int* correct_placement) {
+    if (strlen(guess) != strlen(target)) {
+        fprintf(stderr, "ERROR: Comparing words of different length!\n");
+        abort();
+    }
+    char* temp1 = calloc(strlen(guess) + 1, sizeof(char));
+    strncpy(temp1, guess, strlen(guess) + 1);
+    char* temp2 = calloc(strlen(target) + 1, sizeof(char));
+    strncpy(temp2, target, strlen(target) + 1);
+
+    int ltrs = 0;
+    int plcmt = 0;
+    capitalize(temp1);
+    capitalize(temp2);
+
+    for (int i = 0; i < strlen(temp1); i++) {
+        if (temp1[i] == temp2[i]) {
+            ltrs++;
+            plcmt++;
+            temp2[i] = tolower(temp2[i]); // lowercase letters indicate visited status
+        }
+    }
+
+    if (ltrs != strlen(temp2)) {
+        for (int i = 0; i < strlen(temp1); i++) {
+            for (int j = 0; j < strlen(temp2); j++) {
+                if (temp1[i] == temp2[j]) {
+                    ltrs++;
+                    temp2[j] = tolower(temp2[j]); // lowercase letters indicate visited status
+                }
+            }
+        }
+    }
+
+    free(temp1);
+    free(temp2);
+    *correct_letters = ltrs;
+    *correct_placement = plcmt;
+}
+
 
 int main(int argc, char** argv)
 {
@@ -235,12 +275,13 @@ int main(int argc, char** argv)
 
     while (1)
     {
+        printf("Secret word is: %s\n", secret_word);
         FD_ZERO(&readfds);
-        if (client_socket_index - 1 > MAX_CLIENTS) {
+        if (client_socket_index > MAX_CLIENTS) {
             fprintf(stderr, "ERROR: Too many clients connected!\n");
             return EXIT_FAILURE;
-        } else if (client_socket_index - 1 == MAX_CLIENTS) {
-            printf("SERVER: Max number of clients reached (%d clients) - ", client_socket_index - 1);
+        } else if (client_socket_index == MAX_CLIENTS) {
+            printf("SERVER: Max number of clients reached (%d clients) - ", client_socket_index);
             printf("will not be listening for additional connection requests\n");
         } else {
             FD_SET(listener, &readfds); /* listener socket, fd 3 */
@@ -364,12 +405,55 @@ int main(int argc, char** argv)
                     } else { // client is providing a guess
                         if (strlen(secret_word) == strlen(buffer)) {
                             if (isSame(buffer, secret_word)) { // correct guess was made
-
+                                for (int a = 0; a < client_socket_index; a++) {
+                                    int sck = client_sockets[a];
+                                    send(sck, usernames[i], strlen(usernames[i]), 0);
+                                    send(sck, " has correctly guessed the word ", 32, 0);
+                                    send(sck, secret_word, strlen(secret_word), 0);
+                                    send(sck, "\n", 1, 0);
+                                    close(sck);
+                                }
+                                client_socket_index = 0;
+                                for (int a = 0; a < client_username_index; a++) {
+                                    free(usernames[a]);
+                                    usernames[a] = NULL;
+                                }
+                                client_username_index = 0;
+                                memccpy(secret_word, dictionary[rand() % dictionary_size], '\0', longest_word_length);
+                            } else {
+                                int correct_letters = 0;
+                                int correct_placed = 0;
+                                compareWords(buffer, secret_word, &correct_letters, &correct_placed);
+                                for (int a = 0; a < client_socket_index; a++) {
+                                    int sck = client_sockets[a];
+                                    send(sck, usernames[i], strlen(usernames[i]), 0);
+                                    send(sck, " guessed ", 9, 0);
+                                    send(sck, buffer, strlen(buffer), 0);
+                                    send(sck, ": ", 2, 0);
+                                    if ((bytes_written = snprintf(temp, 5, "%d", correct_letters)) < 0) {
+                                        fprintf(stderr, "ERROR: snprintf() failed\n");
+                                        return EXIT_FAILURE;
+                                    }
+                                    send(sck, temp, bytes_written, 0);
+                                    send(sck, " letter(s) were correct and ", 28, 0);
+                                    if ((bytes_written = snprintf(temp, 5, "%d", correct_placed)) < 0) {
+                                        fprintf(stderr, "ERROR: snprintf() failed\n");
+                                        return EXIT_FAILURE;
+                                    }
+                                    send(sck, temp, bytes_written, 0);
+                                    send(sck, " letter(s) were correctly placed.\n", 34, 0);
+                                }
                             }
+                        } else {
+                            send(fd, "Invalid guess length. The secret word is ", 41, 0);
+                            if ((bytes_written = snprintf(temp, 5, "%ld", strlen(secret_word))) < 0) {
+                                fprintf(stderr, "ERROR: snprintf() failed\n");
+                                return EXIT_FAILURE;
+                            }
+                            send(fd, temp, bytes_written, 0);
+                            send(fd, " letter(s).\n", 12, 0);
                         }
                     }
-
-
                 }
             }
         }
