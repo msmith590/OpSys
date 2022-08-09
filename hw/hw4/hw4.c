@@ -214,7 +214,6 @@ int main(int argc, char** argv)
 
     int dictionary_size = 0;
     char** dictionary = parseDict(dictfile, longest_word_length, &dictionary_size);
-    return EXIT_SUCCESS;
     srand(seed);
     char* secret_word = calloc(longest_word_length, sizeof(char));
     memccpy(secret_word, dictionary[rand() % dictionary_size], '\0', longest_word_length);
