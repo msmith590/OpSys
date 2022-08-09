@@ -38,21 +38,21 @@ int isSame(char* w1, char* w2) {
     return rc;
 }
 
-char** parseDict(int dictfd, int longest_word, int* dictionary_size) {
+char** parseDict(FILE* dictfile, int longest_word, int* dictionary_size) {
     int num_words = 0;
     char letter;
-    while (read(dictfd, &letter, 1)) {
+    while ((letter = fgetc(dictfile)) != EOF) {
         if (letter == '\n') {
             num_words++;
         }
     }
-    lseek(dictfd, -1, SEEK_CUR);
-    read(dictfd, &letter, 1);
+    fseek(dictfile, -1, SEEK_CUR);
+    letter = fgetc(dictfile);
     if (letter != '\n') {
         // Corner case: Last word does not have a newline
         num_words++;
     }
-    lseek(dictfd, 0, SEEK_SET); // reset offset to beginning of file
+    rewind(dictfile); // reset offset to beginning of file
     *dictionary_size = num_words;
 
     #ifdef DEBUG_MODE
@@ -62,16 +62,15 @@ char** parseDict(int dictfd, int longest_word, int* dictionary_size) {
     char** dict = calloc(num_words, sizeof(char*));
     char* buffer = calloc(longest_word, sizeof(char));
     int word_length = 0;
-    int bytes_read;
     for (int i = 0; i < num_words; i++) {
         do
         {
-            bytes_read = read(dictfd, &letter, 1);
-            if (bytes_read && letter != '\n') {
+            letter = fgetc(dictfile);
+            if (letter != EOF && letter != '\n') {
                 buffer[word_length] = letter;
                 word_length++;
             }
-        } while (bytes_read && letter != '\n');
+        } while (letter != EOF && letter != '\n');
 
         dict[i] = calloc(word_length + 1, sizeof(char));
         memcpy(dict[i], buffer, word_length);
@@ -79,7 +78,7 @@ char** parseDict(int dictfd, int longest_word, int* dictionary_size) {
         word_length = 0;
     }
     free(buffer);
-    close(dictfd);
+    fclose(dictfile);
 
     #ifdef DEBUG_MODE
     printf("Printing contents of dictionary:\n");
@@ -184,8 +183,8 @@ int main(int argc, char** argv)
     } 
     unsigned short port = atoi(argv[2]);
     
-    int dictfd = open(argv[3], O_RDONLY);
-    if (dictfd == -1) {
+    FILE* dictfile = fopen(argv[3], "r");
+    if (dictfile == NULL) {
         fprintf(stderr, "ERROR: Argument 3 is an invalid file!\n");
         return EXIT_FAILURE;
     }
@@ -209,12 +208,13 @@ int main(int argc, char** argv)
     printf("Parsed arguments:\n");
     printf("\tseed: %d\n", seed);
     printf("\tport: %d\n", port);
-    printf("\tfile: \'%s\' on descriptor %d\n", argv[3], dictfd);
+    printf("\tfile: \'%s\'\n", argv[3]);
     printf("\tlongest word length: %d\n", longest_word_length);
     #endif
 
     int dictionary_size = 0;
-    char** dictionary = parseDict(dictfd, longest_word_length, &dictionary_size);
+    char** dictionary = parseDict(dictfile, longest_word_length, &dictionary_size);
+    return EXIT_SUCCESS;
     srand(seed);
     char* secret_word = calloc(longest_word_length, sizeof(char));
     memccpy(secret_word, dictionary[rand() % dictionary_size], '\0', longest_word_length);
