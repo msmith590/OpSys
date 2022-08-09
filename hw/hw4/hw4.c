@@ -1,3 +1,17 @@
+/* hw4.c
+ *  Author: Martin Smith
+ *  CSCI 4210
+ *  08/10/2022
+ *  Goldschmidt/Plum
+ *
+ *  Submitty score: 50/50
+ * 
+ *  Note: This file utilizes dynamic memory that does
+ *        not all get freed by in-file mechanisms (free()).
+ *        Pointers are maintained, however, and it is
+ *        expected that the OS will perform final clearnup.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -14,12 +28,14 @@
 #define MAXBUFFER 1024
 #define MAX_CLIENTS 5
 
+/* Function that capitalizes the word argument */
 void capitalize(char* word) {
     for (int i = 0; i < strlen(word); i++) {
         word[i] = toupper(word[i]);
     }
 }
 
+/* Function that returns 1 if w1 and w2 are the same (by value), or 0 othersise */
 int isSame(char* w1, char* w2) {
     char* temp1 = calloc(strlen(w1) + 1, sizeof(char));
     strncpy(temp1, w1, strlen(w1) + 1);
@@ -38,6 +54,7 @@ int isSame(char* w1, char* w2) {
     return rc;
 }
 
+/* Function that parses the provided dictionary file and stores words in an array */
 char** parseDict(FILE* dictfile, int longest_word, int* dictionary_size) {
     int num_words = 0;
     char letter;
@@ -90,13 +107,8 @@ char** parseDict(FILE* dictfile, int longest_word, int* dictionary_size) {
     return dict;
 }
 
-/**
- * @brief Checks if name is a valid username
- * 
- * @param name 
- * @param usernames 
- * @return 0 if name is invalid; 1 if name is valid
- */
+/* Function that checks if provided name is not already present in usernames
+    and if so, returns 1, or 0 if name is already in usernames */
 int checkUsernames(char* name, char** usernames) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (usernames[i] != NULL && isSame(name, usernames[i])) {
@@ -106,6 +118,7 @@ int checkUsernames(char* name, char** usernames) {
     return 1;
 }
 
+/* Function that determines how many letters are correctly guessed/placed */
 void compareWords(char* guess, char* target, int* correct_letters, int* correct_placement) {
     if (strlen(guess) != strlen(target)) {
         fprintf(stderr, "ERROR: Comparing words of different length!\n");
@@ -149,7 +162,7 @@ void compareWords(char* guess, char* target, int* correct_letters, int* correct_
 
 int main(int argc, char** argv)
 {
-    setvbuf( stdout, NULL, _IONBF, 0 );
+    setvbuf( stdout, NULL, _IONBF, 0 ); // disables buffered output - done for grading purposes
 
     // Argument checking
     if (argc != 5) {
@@ -218,12 +231,11 @@ int main(int argc, char** argv)
     char* secret_word = calloc(longest_word_length, sizeof(char));
     memccpy(secret_word, dictionary[rand() % dictionary_size], '\0', longest_word_length);
     
-    
     fd_set readfds;
     int client_sockets[MAX_CLIENTS]; /* client socket fd list */
     int client_socket_index = 0;     /* next free spot */
-    char** usernames = calloc(MAX_CLIENTS, sizeof(char*));
-    int client_username_index = 0;
+    char** usernames = calloc(MAX_CLIENTS, sizeof(char*)); /* client usernames list */
+    int client_username_index = 0; /* next free spot */
 
     /* Create the listener socket as TCP socket (SOCK_STREAM) */
     int listener = socket(PF_INET, SOCK_STREAM, 0);
@@ -241,7 +253,6 @@ int main(int argc, char** argv)
 
     server.sin_addr.s_addr = htonl(INADDR_ANY);
     /* allow any IP address to connect */
-
 
     /* htons() is host-to-network short for data marshalling */
     /* Internet is big endian; Intel is little endian; etc.  */
@@ -265,7 +276,7 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    // printf("SERVER: TCP listener socket (fd %d) bound to port %d\n", listener, port);
+    printf("SERVER: TCP listener socket (fd %d) bound to port %d\n", listener, port);
 
     int n, bytes_written = 0;
     char buffer[MAXBUFFER + 1];
@@ -274,13 +285,14 @@ int main(int argc, char** argv)
 
     while (1)
     {
+        printf("SERVER: Secret word is %s\n", secret_word);
         FD_ZERO(&readfds);
         if (client_socket_index > MAX_CLIENTS) {
             fprintf(stderr, "ERROR: Too many clients connected!\n");
             return EXIT_FAILURE;
         } else if (client_socket_index < MAX_CLIENTS) {
             FD_SET(listener, &readfds); /* listener socket, fd 3 */
-            // printf("SERVER: Set FD_SET to include listener fd %d\n", listener);
+            printf("SERVER: Set FD_SET to include listener fd %d\n", listener);
         }
 
         /* initially, this for loop does nothing; but once we have some */
@@ -289,16 +301,16 @@ int main(int argc, char** argv)
         for (int i = 0; i < client_socket_index; i++)
         {
             FD_SET(client_sockets[i], &readfds);
-            // printf("SERVER: Set FD_SET to include client socket fd %d\n", client_sockets[i]);
+            printf("SERVER: Set FD_SET to include client socket fd %d\n", client_sockets[i]);
         }
 
-        // printf("SERVER: Blocked on select()...\n");
+        printf("SERVER: Blocked on select()...\n");
 
         /* This is a BLOCKING call, but will block on all readfds */
-        select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
+        int ready = select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
 
         /* ready is the number of ready file descriptors */
-        // printf("SERVER: select() identified %d descriptor(s) with activity\n", ready);
+        printf("SERVER: select() identified %d descriptor(s) with activity\n", ready);
 
         /* is there activity on the listener descriptor? */
         if (FD_ISSET(listener, &readfds))
@@ -319,7 +331,7 @@ int main(int argc, char** argv)
                 return EXIT_FAILURE;
             }
 
-            // printf("SERVER: Accepted client connection from %s\n", inet_ntoa((struct in_addr)client.sin_addr));
+            printf("SERVER: Accepted client connection from %s\n", inet_ntoa((struct in_addr)client.sin_addr));
             client_sockets[client_socket_index++] = newsd;
         }
 
@@ -340,7 +352,7 @@ int main(int argc, char** argv)
                 }
                 else if (n == 0)
                 {
-                    // printf("SERVER: Rcvd 0 from recv(); closing client socket...\n");
+                    printf("SERVER: Rcvd 0 from recv(); closing client socket...\n");
                     close(fd);
 
                     /* remove fd from client_sockets[] array: */
@@ -349,7 +361,7 @@ int main(int argc, char** argv)
                         if (fd == client_sockets[k])
                         {
                             free(usernames[k]);
-                            /* found it -- copy remaining elements over fd */
+                            /* found it -- copy remaining elements over fd and usernames */
                             for (int m = k; m < client_socket_index - 1; m++)
                             {
                                 client_sockets[m] = client_sockets[m + 1];
@@ -369,8 +381,8 @@ int main(int argc, char** argv)
                         return EXIT_FAILURE;
                     }
                     buffer[n - 1] = '\0'; /* assume this is text data, overrites newline with null byte */
-                    // printf("SERVER: Rcvd message from fd %d: [%s]\n", fd, buffer);
-                    // printf("SERVER: Sending acknowledgement to client\n");
+                    printf("SERVER: Rcvd message from fd %d: [%s]\n", fd, buffer);
+                    printf("SERVER: Sending acknowledgement to client\n");
                     if (usernames[i] == NULL) { // Need to get username from client
                         if (checkUsernames(buffer, usernames)) {
                             bytes_written = 0;
@@ -402,7 +414,7 @@ int main(int argc, char** argv)
                             usernames[i] = calloc(n - 1, sizeof(char));
                             memcpy(usernames[i], buffer, n - 1);
                             client_username_index++;
-                        } else {
+                        } else { // username provided is already taken
                             bytes_written = 0;
                             memcpy(temp + bytes_written, "Username ", 9);
                             bytes_written += 9;
@@ -415,7 +427,7 @@ int main(int argc, char** argv)
                         }
                     } else { // client is providing a guess
                         if (strlen(secret_word) == strlen(buffer)) {
-                            if (isSame(buffer, secret_word)) { // correct guess was made
+                            if (isSame(buffer, secret_word)) { // correct guess was made, notify and disconnect all clients
                                 for (int a = 0; a < client_socket_index; a++) {
                                     int sck = client_sockets[a];
                                     bytes_written = 0;
@@ -437,7 +449,7 @@ int main(int argc, char** argv)
                                 }
                                 client_username_index = 0;
                                 memccpy(secret_word, dictionary[rand() % dictionary_size], '\0', longest_word_length);
-                            } else { // Incorrect guess made
+                            } else { // Incorrect guess made, send guess analytics to all users
                                 int correct_letters = 0;
                                 int correct_placed = 0;
                                 compareWords(buffer, secret_word, &correct_letters, &correct_placed);
@@ -472,7 +484,7 @@ int main(int argc, char** argv)
                                     send(sck, temp, bytes_written, 0);
                                 }
                             }
-                        } else {
+                        } else { // guess made of incorrect length, only notify single client who sent word
                             bytes_written = 0;
                             memcpy(temp + bytes_written, "Invalid guess length. The secret word is ", 41);
                             bytes_written += 41;
@@ -492,6 +504,16 @@ int main(int argc, char** argv)
             }
         }
     }
+
+    // For this implementation, processing will never reach this point, however
+    // I chose to include some memory cleanup for any future implementations just in case
+    free(usernames); /* should be empty at this point */
+    free(temp);
+    free(num);
+    for (int i = 0 ; i < dictionary_size; i++) {
+        free(dictionary[i]);
+    }
+    free(dictionary);
 
     return EXIT_SUCCESS;
 }

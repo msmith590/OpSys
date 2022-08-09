@@ -2,7 +2,7 @@
  *  Author: Martin Smith
  *  CSCI 4210
  *  07/28/2022
- *  Goldschmidt
+ *  Goldschmidt/Plum
  *
  *  Submitty score: 50/50
  */
