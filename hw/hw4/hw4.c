@@ -265,26 +265,22 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    printf("SERVER: TCP listener socket (fd %d) bound to port %d\n", listener, port);
+    // printf("SERVER: TCP listener socket (fd %d) bound to port %d\n", listener, port);
 
     int n, bytes_written = 0;
     char buffer[MAXBUFFER + 1];
-    char* temp = calloc(5, sizeof(char)); // used to send integers as strings to clients
-    
+    char* temp = calloc(3000, sizeof(char)); // buffer string used to send output
+    char* num = calloc(5, sizeof(char)); // buffer used to add integer strings to temp
 
     while (1)
     {
-        printf("Secret word is: %s\n", secret_word);
         FD_ZERO(&readfds);
         if (client_socket_index > MAX_CLIENTS) {
             fprintf(stderr, "ERROR: Too many clients connected!\n");
             return EXIT_FAILURE;
-        } else if (client_socket_index == MAX_CLIENTS) {
-            printf("SERVER: Max number of clients reached (%d clients) - ", client_socket_index);
-            printf("will not be listening for additional connection requests\n");
-        } else {
+        } else if (client_socket_index < MAX_CLIENTS) {
             FD_SET(listener, &readfds); /* listener socket, fd 3 */
-            printf("SERVER: Set FD_SET to include listener fd %d\n", listener);
+            // printf("SERVER: Set FD_SET to include listener fd %d\n", listener);
         }
 
         /* initially, this for loop does nothing; but once we have some */
@@ -293,16 +289,16 @@ int main(int argc, char** argv)
         for (int i = 0; i < client_socket_index; i++)
         {
             FD_SET(client_sockets[i], &readfds);
-            printf("SERVER: Set FD_SET to include client socket fd %d\n", client_sockets[i]);
+            // printf("SERVER: Set FD_SET to include client socket fd %d\n", client_sockets[i]);
         }
 
-        printf("SERVER: Blocked on select()...\n");
+        // printf("SERVER: Blocked on select()...\n");
 
         /* This is a BLOCKING call, but will block on all readfds */
-        int ready = select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
+        select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
 
         /* ready is the number of ready file descriptors */
-        printf("SERVER: select() identified %d descriptor(s) with activity\n", ready);
+        // printf("SERVER: select() identified %d descriptor(s) with activity\n", ready);
 
         /* is there activity on the listener descriptor? */
         if (FD_ISSET(listener, &readfds))
@@ -323,7 +319,7 @@ int main(int argc, char** argv)
                 return EXIT_FAILURE;
             }
 
-            printf("SERVER: Accepted client connection from %s\n", inet_ntoa((struct in_addr)client.sin_addr));
+            // printf("SERVER: Accepted client connection from %s\n", inet_ntoa((struct in_addr)client.sin_addr));
             client_sockets[client_socket_index++] = newsd;
         }
 
@@ -344,7 +340,7 @@ int main(int argc, char** argv)
                 }
                 else if (n == 0)
                 {
-                    printf("SERVER: Rcvd 0 from recv(); closing client socket...\n");
+                    // printf("SERVER: Rcvd 0 from recv(); closing client socket...\n");
                     close(fd);
 
                     /* remove fd from client_sockets[] array: */
@@ -373,43 +369,65 @@ int main(int argc, char** argv)
                         return EXIT_FAILURE;
                     }
                     buffer[n - 1] = '\0'; /* assume this is text data, overrites newline with null byte */
-                    printf("SERVER: Rcvd message from fd %d: [%s]\n", fd, buffer);
-                    printf("SERVER: Sending acknowledgement to client\n");
+                    // printf("SERVER: Rcvd message from fd %d: [%s]\n", fd, buffer);
+                    // printf("SERVER: Sending acknowledgement to client\n");
                     if (usernames[i] == NULL) { // Need to get username from client
                         if (checkUsernames(buffer, usernames)) {
-                            send(fd, "Let's start playing, ", 21, 0);
-                            send(fd, buffer, n - 1, 0);
-                            send(fd, "\nThere are ", 11, 0);
-                            if ((bytes_written = snprintf(temp, 5, "%d", client_username_index + 1)) < 0) {
+                            bytes_written = 0;
+                            memcpy(temp + bytes_written, "Let's start playing, ", 21);
+                            bytes_written += 21;
+                            memcpy(temp + bytes_written, buffer, strlen(buffer));
+                            bytes_written += strlen(buffer);
+                            memcpy(temp + bytes_written, "\nThere are ", 11);
+                            bytes_written += 11;
+                            if (snprintf(num, 5, "%d", client_username_index + 1) < 0) {
                                 fprintf(stderr, "ERROR: snprintf() failed\n");
                                 return EXIT_FAILURE;
                             }
-                            send(fd, temp, bytes_written, 0);
-                            send(fd, " player(s) playing. The secret word is ", 39, 0);
-                            if ((bytes_written = snprintf(temp, 5, "%ld", strlen(secret_word))) < 0) {
+                            memcpy(temp + bytes_written, num, strlen(num));
+                            bytes_written += strlen(num);
+                            memcpy(temp + bytes_written, " player(s) playing. The secret word is ", 39);
+                            bytes_written += 39;
+                            if (snprintf(num, 5, "%ld", strlen(secret_word)) < 0) {
                                 fprintf(stderr, "ERROR: snprintf() failed\n");
                                 return EXIT_FAILURE;
                             }
+                            memcpy(temp + bytes_written, num, strlen(num));
+                            bytes_written += strlen(num);
+                            memcpy(temp + bytes_written, " letter(s).\n", 12);
+                            bytes_written += 12;
+
                             send(fd, temp, bytes_written, 0);
-                            send(fd, " letter(s).\n", 12, 0);
 
                             usernames[i] = calloc(n - 1, sizeof(char));
                             memcpy(usernames[i], buffer, n - 1);
                             client_username_index++;
                         } else {
-                            send(fd, "Username ", 9, 0);
-                            send(fd, buffer, n - 1, 0);
-                            send(fd, " is already taken, please enter a different username\n", 53, 0);
+                            bytes_written = 0;
+                            memcpy(temp + bytes_written, "Username ", 9);
+                            bytes_written += 9;
+                            memcpy(temp + bytes_written, buffer, strlen(buffer));
+                            bytes_written += strlen(buffer);
+                            memcpy(temp + bytes_written, " is already taken, please enter a different username\n", 53);
+                            bytes_written += 53;
+
+                            send(fd, temp, bytes_written, 0);
                         }
                     } else { // client is providing a guess
                         if (strlen(secret_word) == strlen(buffer)) {
                             if (isSame(buffer, secret_word)) { // correct guess was made
                                 for (int a = 0; a < client_socket_index; a++) {
                                     int sck = client_sockets[a];
-                                    send(sck, usernames[i], strlen(usernames[i]), 0);
-                                    send(sck, " has correctly guessed the word ", 32, 0);
-                                    send(sck, secret_word, strlen(secret_word), 0);
-                                    send(sck, "\n", 1, 0);
+                                    bytes_written = 0;
+                                    memcpy(temp + bytes_written, usernames[i], strlen(usernames[i]));
+                                    bytes_written += strlen(usernames[i]);
+                                    memcpy(temp + bytes_written, " has correctly guessed the word ", 32);
+                                    bytes_written += 32;
+                                    memcpy(temp + bytes_written, secret_word, strlen(secret_word));
+                                    bytes_written += strlen(secret_word);
+
+                                    send(sck, temp, bytes_written, 0);
+
                                     close(sck);
                                 }
                                 client_socket_index = 0;
@@ -419,38 +437,55 @@ int main(int argc, char** argv)
                                 }
                                 client_username_index = 0;
                                 memccpy(secret_word, dictionary[rand() % dictionary_size], '\0', longest_word_length);
-                            } else {
+                            } else { // Incorrect guess made
                                 int correct_letters = 0;
                                 int correct_placed = 0;
                                 compareWords(buffer, secret_word, &correct_letters, &correct_placed);
                                 for (int a = 0; a < client_socket_index; a++) {
                                     int sck = client_sockets[a];
-                                    send(sck, usernames[i], strlen(usernames[i]), 0);
-                                    send(sck, " guessed ", 9, 0);
-                                    send(sck, buffer, strlen(buffer), 0);
-                                    send(sck, ": ", 2, 0);
-                                    if ((bytes_written = snprintf(temp, 5, "%d", correct_letters)) < 0) {
+                                    bytes_written = 0;
+                                    memcpy(temp + bytes_written, usernames[i], strlen(usernames[i]));
+                                    bytes_written += strlen(usernames[i]);
+                                    memcpy(temp + bytes_written, " guessed ", 9);
+                                    bytes_written += 9;
+                                    memcpy(temp + bytes_written, buffer, strlen(buffer));
+                                    bytes_written += strlen(buffer);
+                                    memcpy(temp + bytes_written, ": ", 2);
+                                    bytes_written += 2;
+                                    if (snprintf(num, 5, "%d", correct_letters) < 0) {
                                         fprintf(stderr, "ERROR: snprintf() failed\n");
                                         return EXIT_FAILURE;
                                     }
-                                    send(sck, temp, bytes_written, 0);
-                                    send(sck, " letter(s) were correct and ", 28, 0);
-                                    if ((bytes_written = snprintf(temp, 5, "%d", correct_placed)) < 0) {
+                                    memcpy(temp + bytes_written, num, strlen(num));
+                                    bytes_written += strlen(num);
+                                    memcpy(temp + bytes_written, " letter(s) were correct and ", 28);
+                                    bytes_written += 28;
+                                    if (snprintf(num, 5, "%d", correct_placed) < 0) {
                                         fprintf(stderr, "ERROR: snprintf() failed\n");
                                         return EXIT_FAILURE;
                                     }
+                                    memcpy(temp + bytes_written, num, strlen(num));
+                                    bytes_written += strlen(num);
+                                    memcpy(temp + bytes_written, " letter(s) were correctly placed.\n", 34);
+                                    bytes_written += 34;
+
                                     send(sck, temp, bytes_written, 0);
-                                    send(sck, " letter(s) were correctly placed.\n", 34, 0);
                                 }
                             }
                         } else {
-                            send(fd, "Invalid guess length. The secret word is ", 41, 0);
-                            if ((bytes_written = snprintf(temp, 5, "%ld", strlen(secret_word))) < 0) {
+                            bytes_written = 0;
+                            memcpy(temp + bytes_written, "Invalid guess length. The secret word is ", 41);
+                            bytes_written += 41;
+                            if (snprintf(num, 5, "%ld", strlen(secret_word)) < 0) {
                                 fprintf(stderr, "ERROR: snprintf() failed\n");
                                 return EXIT_FAILURE;
                             }
+                            memcpy(temp + bytes_written, num, strlen(num));
+                            bytes_written += strlen(num);
+                            memcpy(temp + bytes_written, " letter(s).\n", 12);
+                            bytes_written += 12;
+
                             send(fd, temp, bytes_written, 0);
-                            send(fd, " letter(s).\n", 12, 0);
                         }
                     }
                 }
